@@ -1,0 +1,322 @@
+const UserModel = require("../models/User");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid");
+const { OAuth2Client } = require("google-auth-library");
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// Google singin/signup
+exports.googleAuth = async (req, res, next) => {
+  try {
+    const idToken = req.body.tokenId;
+    const ticket = await client.verifyIdToken({
+      idToken,
+      requiredAudience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const { sub, email, name, picture } = payload;
+    const foundUser = await UserModel.findOne({
+      email,
+      isArchived: false,
+    }).select("-password");
+    // Sign-up
+    if (!foundUser) {
+      const newUser = await UserModel.create({
+        id: sub,
+        email,
+        fullName: name,
+        picture: picture,
+        authMethod: "google",
+      });
+      // Generate Token
+      const token = jwt.sign(
+        {
+          email,
+          fullName: newUser.fullName,
+          id: sub,
+          loginDate: Date.now(),
+          isActive: true,
+        },
+        process.env.SECRET_KEY,
+        { expiresIn: "12h" }
+      );
+      // Add Login history
+      newUser.loginHistory.push({
+        id,
+        ip: req.socket.remoteAddress,
+        device: req.headers["user-agent"],
+        date: Date.now(),
+      });
+      res.cookie("x-orderstation-token", token);
+      await newUser.save();
+      return res.status(200).send({
+        code: 200,
+        messsage: `${name} welcome to Order Station`,
+        date: Date.now(),
+        success: true,
+      });
+    } else {
+      // Sign-in
+      // Generate Token
+      const token = jwt.sign(
+        {
+          email,
+          fullName: foundUser.fullName,
+          id: foundUser.id,
+          loginDate: Date.now(),
+          isActive: foundUser.isActive && !foundUser.isArchived,
+        },
+        process.env.SECRET_KEY,
+        { expiresIn: "12h" }
+      );
+      // Add Login history
+      foundUser.loginHistory.push({
+        id,
+        ip: req.socket.remoteAddress,
+        device: req.headers["user-agent"],
+        date: Date.now(),
+      });
+      res.cookie("x-orderstation-token", token);
+      await foundUser.save();
+      return res.status(200).send({
+        code: 200,
+        messsage: `${name} welcome to Order Station`,
+        date: Date.now(),
+        success: true,
+      });
+    }
+  } catch (err) {
+    res.status(500).send({
+      code: 500,
+      messsage: `This error is coming from googleAuth: ${err.message}`,
+      date: Date.now(),
+      success: false,
+    });
+  }
+};
+
+// Facebook singin/signup
+exports.facebookAuth = async (req, res, next) => {
+  try {
+    const { userID, email, name, picture } = req.body;
+    // const idToken = accessToken
+    const foundUser = await UserModel.findOne({
+      email,
+      isArchived: false,
+    }).select("-password");
+    if (foundUser) {
+      // Generate session ID
+      // Generate Token
+      const token = jwt.sign(
+        {
+          email,
+          fullName: foundUser.fullName,
+          id: foundUser.id,
+          loginDate: Date.now(),
+          isActive: foundUser.isActive && !foundUser.isArchived,
+        },
+        process.env.SECRET_KEY,
+        { expiresIn: "12h" }
+      );
+      // Add Login history
+      foundUser.loginHistory.push({
+        id,
+        ip: req.socket.remoteAddress,
+        device: req.headers["user-agent"],
+        date: Date.now(),
+      });
+      res.cookie("x-orderstation-token", token);
+      await foundUser.save();
+      return res.status(200).send({
+        code: 200,
+        message: `${name} welcome to Order Station`,
+        date: Date.now(),
+        success: true,
+      });
+    } else {
+      const newUser = await UserModel.create({
+        id: userID,
+        email,
+        fullName: name,
+        authMethod: "facebook",
+        picture: picture.data.url,
+      });
+      const token = jwt.sign(
+        {
+          email,
+          fullName: newUser.fullName,
+          id: userID,
+          loginDate: Date.now(),
+          isActive: true,
+        },
+        process.env.SECRET_KEY,
+        { expiresIn: "12h" }
+      );
+      // Add Login history
+      newUser.loginHistory.push({
+        id,
+        ip: req.socket.remoteAddress,
+        device: req.headers["user-agent"],
+        date: Date.now(),
+      });
+      res.cookie("x-orderstation-token", token);
+      await newUser.save();
+      return res.status(200).send({
+        code: 200,
+        messsage: `${name} welcome to Order Station`,
+        date: Date.now(),
+        success: true,
+      });
+    }
+  } catch (err) {
+    res.status(500).send({
+      code: 500,
+      message: `This error is coming from facebookAuth: ${err.message}`,
+      date: Date.now(),
+      success: false,
+    });
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email) {
+      return res.status(400).send({
+        message: "Missing credentials",
+        code: 400,
+        date: Date.now(),
+        success: false,
+      });
+    }
+    const foundUser = await UserModel.findOne({
+      email,
+      isArchived: false,
+    });
+
+    if (!foundUser) {
+      return res.status(404).send({
+        message:
+          "This user dosent exist in the database , please verify and send again",
+        code: 404,
+        date: Date.now(),
+        success: false,
+      });
+    } else if (!foundUser.isActive)
+      return res.status(401).send({
+        message:
+          "Your account has been disabled. Please contact support for more informations.",
+        code: 401,
+        date: Date.now(),
+        success: false,
+      });
+
+    bcrypt.compare(password, foundUser.password, async (err, data) => {
+      //if error than throw error
+      if (err) throw err;
+
+      //if both match than you can do anything
+      if (data) {
+        foundUser.loginHistory.push({
+          date: Date.now(),
+          device: req.headers["user-agent"],
+          ip: req.ip,
+          success: true,
+        });
+
+        const token = jwt.sign(
+          {
+            id: foundUser.id,
+            email,
+            fullName: foundUser.fullName,
+            loginDate: Date.now(),
+            isActive: foundUser.isActive && !foundUser.isArchived,
+          },
+          process.env.SECRET_KEY,
+          {
+            expiresIn: "12h",
+          }
+        );
+        foundUser.save();
+        res.cookie("x-orderstation-token", token);
+
+        return res.status(200).json({
+          message: "Login success",
+          code: 200,
+          success: true,
+          date: Date.now(),
+        });
+      } else {
+        foundUser.loginHistory.push({
+          date: Date.now(),
+          device: req.headers["user-agent"],
+          ip: req.ip,
+          success: false,
+        });
+        await foundUser.save();
+        return res.status(401).send({
+          message: "Invalid credentials",
+          code: 401,
+          success: false,
+          date: Date.now(),
+        });
+      }
+    });
+  } catch (err) {
+    res.status(500).send({
+      message: `This error is coming from login: ${err.message}`,
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
+exports.signup = async (req, res, next) => {
+  try {
+    var { email, fullName, password, phoneNumber } = req.body;
+    let foundUser = await UserModel.findOne({
+      email,
+      isArchived: false,
+    });
+    // if email exist break the registre
+    if (foundUser) {
+      return res.status(400).send({
+        code: 400,
+        message: "Email or phone number already exists",
+        date: Date.now(),
+        success: false,
+      });
+    } else {
+      let newUser = new UserModel({
+        id: uuidv4(),
+        email,
+        phoneNumber,
+        fullName,
+        password: await bcrypt.hash(password, 10),
+      });
+      const notification = {
+        id: uuidv4(),
+        createdAt: Date.now(),
+        isRead: false,
+        title: "Created successfully",
+        content: "Welcome to Order Station. Have a look around.",
+      };
+      newUser.notifications.push(notification);
+      await newUser.save();
+      res.status(200).send({
+        code: 200,
+        message: `${fullName}, welcome to Order Station`,
+        date: Date.now(),
+        success: true,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      code: 5001,
+      message: `This error is coming from signup: ${err.message}`,
+      date: Date.now(),
+      success: false,
+    });
+  }
+};
