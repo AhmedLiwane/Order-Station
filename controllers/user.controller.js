@@ -4,6 +4,63 @@ const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const passport = require("passport");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
+
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: "/api/user/google2auth/callback", // The callback URL after authentication
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      try {
+        // Check if the user already exists in your database
+        let user = await UserModel.findOne({ id: profile.id });
+
+        if (user) {
+          // If user exists, return it
+          return done(null, user);
+        } else {
+          // If user doesn't exist, create a new user and save it to the database
+          const newUser = new UserModel({
+            id: profile.id,
+            fullName: profile.displayName,
+            email: profile.email,
+            picture: profile.picture,
+            // Additional user properties as needed
+          });
+
+          user = await newUser.save();
+          return done(null, user);
+        }
+      } catch (error) {
+        return done(error);
+      }
+    }
+  )
+);
+
+exports.authenticateGoogle = passport.authenticate("google", {
+  scope: ["profile"],
+});
+
+exports.googleCallback = (req, res, next) => {
+  passport.authenticate("google", { failureRedirect: "/login" })(
+    req,
+    res,
+    (err) => {
+      if (err) {
+        // Handle error
+        return next(err);
+      }
+
+      // Redirect to a success page or handle the successful authentication
+      res.redirect("/dashboard");
+    }
+  );
+};
 
 // Google singin/signup
 exports.googleAuth = async (req, res, next) => {
