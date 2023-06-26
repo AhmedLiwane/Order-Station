@@ -42,7 +42,7 @@ passport.use(
   )
 );
 
-exports.authenticateGoogle = passport.authenticate("google", {
+exports.login = passport.authenticate("oauth2", {
   scope: ["profile"],
 });
 
@@ -153,87 +153,87 @@ exports.googleAuth = async (req, res, next) => {
 };
 
 // Facebook singin/signup
-exports.facebookAuth = async (req, res, next) => {
-  try {
-    const { userID, email, name, picture } = req.body;
-    // const idToken = accessToken
-    const foundUser = await UserModel.findOne({
-      email,
-      isArchived: false,
-    }).select("-password");
-    if (foundUser) {
-      // Generate session ID
-      // Generate Token
-      const token = jwt.sign(
-        {
-          email,
-          fullName: foundUser.fullName,
-          id: foundUser.id,
-          loginDate: Date.now(),
-          isActive: foundUser.isActive && !foundUser.isArchived,
-        },
-        process.env.SECRET_KEY,
-        { expiresIn: "12h" }
-      );
-      // Add Login history
-      foundUser.loginHistory.push({
-        id,
-        ip: req.socket.remoteAddress,
-        device: req.headers["user-agent"],
-        date: Date.now(),
-      });
-      res.cookie("x-orderstation-token", token);
-      await foundUser.save();
-      return res.status(200).send({
-        code: 200,
-        message: `${name} welcome to Order Station`,
-        date: Date.now(),
-        success: true,
-      });
-    } else {
-      const newUser = await UserModel.create({
-        id: userID,
-        email,
-        fullName: name,
-        authMethod: "facebook",
-        picture: picture.data.url,
-      });
-      const token = jwt.sign(
-        {
-          email,
-          fullName: newUser.fullName,
-          id: userID,
-          loginDate: Date.now(),
-          isActive: true,
-        },
-        process.env.SECRET_KEY,
-        { expiresIn: "12h" }
-      );
-      // Add Login history
-      newUser.loginHistory.push({
-        id,
-        ip: req.socket.remoteAddress,
-        device: req.headers["user-agent"],
-        date: Date.now(),
-      });
-      res.cookie("x-orderstation-token", token);
-      await newUser.save();
-      return res.status(200).send({
-        code: 200,
-        messsage: `${name} welcome to Order Station`,
-        date: Date.now(),
-        success: true,
-      });
-    }
-  } catch (err) {
-    res.status(500).send({
-      code: 500,
-      message: `This error is coming from facebookAuth: ${err.message}`,
-      date: Date.now(),
-      success: false,
-    });
-  }
-};
+// exports.facebookAuth = async (req, res, next) => {
+//   try {
+//     const { userID, email, name, picture } = req.body;
+//     // const idToken = accessToken
+//     const foundUser = await UserModel.findOne({
+//       email,
+//       isArchived: false,
+//     }).select("-password");
+//     if (foundUser) {
+//       // Generate session ID
+//       // Generate Token
+//       const token = jwt.sign(
+//         {
+//           email,
+//           fullName: foundUser.fullName,
+//           id: foundUser.id,
+//           loginDate: Date.now(),
+//           isActive: foundUser.isActive && !foundUser.isArchived,
+//         },
+//         process.env.SECRET_KEY,
+//         { expiresIn: "12h" }
+//       );
+//       // Add Login history
+//       foundUser.loginHistory.push({
+//         id,
+//         ip: req.socket.remoteAddress,
+//         device: req.headers["user-agent"],
+//         date: Date.now(),
+//       });
+//       res.cookie("x-orderstation-token", token);
+//       await foundUser.save();
+//       return res.status(200).send({
+//         code: 200,
+//         message: `${name} welcome to Order Station`,
+//         date: Date.now(),
+//         success: true,
+//       });
+//     } else {
+//       const newUser = await UserModel.create({
+//         id: userID,
+//         email,
+//         fullName: name,
+//         authMethod: "facebook",
+//         picture: picture.data.url,
+//       });
+//       const token = jwt.sign(
+//         {
+//           email,
+//           fullName: newUser.fullName,
+//           id: userID,
+//           loginDate: Date.now(),
+//           isActive: true,
+//         },
+//         process.env.SECRET_KEY,
+//         { expiresIn: "12h" }
+//       );
+//       // Add Login history
+//       newUser.loginHistory.push({
+//         id,
+//         ip: req.socket.remoteAddress,
+//         device: req.headers["user-agent"],
+//         date: Date.now(),
+//       });
+//       res.cookie("x-orderstation-token", token);
+//       await newUser.save();
+//       return res.status(200).send({
+//         code: 200,
+//         messsage: `${name} welcome to Order Station`,
+//         date: Date.now(),
+//         success: true,
+//       });
+//     }
+//   } catch (err) {
+//     res.status(500).send({
+//       code: 500,
+//       message: `This error is coming from facebookAuth: ${err.message}`,
+//       date: Date.now(),
+//       success: false,
+//     });
+//   }
+// };
 
 exports.login = async (req, res) => {
   try {
