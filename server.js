@@ -1,7 +1,8 @@
 const express = require("express");
 const connectDB = require("./config/connectDB");
 const morgan = require("morgan");
-const User = require("./routes/user");
+const User = require("./routes/User");
+const Admin = require("./routes/Admin");
 var bodyParser = require("body-parser");
 var cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
@@ -58,6 +59,9 @@ app.get("/ping", (req, res) => {
 });
 
 app.use("/api/user", User, function (req, res) {
+  res.header("Access-Control-Allow-Origin", "*");
+});
+app.use("/api/admin", Admin, function (req, res) {
   res.header("Access-Control-Allow-Origin", "*");
 });
 
