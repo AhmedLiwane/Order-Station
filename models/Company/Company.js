@@ -22,6 +22,7 @@ const Company = new Schema({
   isActive: { type: Boolean, default: true },
   isArchived: { type: Boolean, default: false },
   transactions: { type: Array, default: [] },
+  orders: { type: Array, default: [] },
   features: { type: Array, default: [] },
 });
 

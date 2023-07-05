@@ -88,7 +88,6 @@ exports.login = async (req, res) => {
       }
     });
   } catch (err) {
-    console.log(err);
     res.status(500).send({
       message:
         "This error is coming from login endpoint, please report to the sys administrator !",
@@ -552,6 +551,82 @@ exports.udpateCompany = async (req, res) => {
     res.status(500).send({
       message:
         "This error is coming from udpateCompany endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
+exports.createUser = async (req, res) => {
+  try {
+    const token = req["cookies"]["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundAdmin = await AdminModel.findOne({
+      id: user.id,
+    });
+    if (!foundAdmin) {
+      return res.status(404).send({
+        message: "Admin not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const { name, surname, email, phone, photo, role, password, idCompany } =
+      req.body;
+    if (email) {
+      const foundEmail = await UserModel.findOne({ email, isArchived: false });
+      if (foundEmail)
+        return res.status(401).send({
+          message: "Email already exists",
+          code: 401,
+          success: false,
+          date: Date.now(),
+        });
+    }
+
+    const foundCompany = await CompanyModel.findOne({
+      id: idCompany,
+      isArchived: false,
+      isActive: true,
+    });
+    if (!foundCompany)
+      return res.status(404).send({
+        message: "Company not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+
+    const authPassword = await bcrypt.hash(password, 10);
+    const idUser = uuidv4();
+    let newUser = new UserModel({
+      id: idUser,
+      name,
+      surname,
+      email,
+      phone,
+      photo,
+      role,
+      password,
+      idCompany,
+      password: authPassword,
+    });
+    foundCompany.users.push(idUser);
+    await newUser.save();
+    await foundCompany.save();
+    res.status(200).send({
+      message: "Created user",
+      code: 200,
+      success: true,
+      date: Date.now(),
+    });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from createUser endpoint, please report to the sys administrator !",
       code: 500,
       success: false,
       date: Date.now(),

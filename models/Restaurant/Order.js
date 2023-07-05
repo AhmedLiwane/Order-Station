@@ -6,7 +6,7 @@ const Order = new Schema({
   reference: { type: String, require: true },
   createdAt: { type: Date, default: Date.now() },
   createdBy: { type: String, default: "" },
-  status: { type: String, default: "" },
+  status: { type: String, default: "" }, // New - Accepted - Ready - Refused
   platform: { type: String, default: "" },
   orderPrice: { type: Number, default: 0 },
   TVA: { type: Number, default: 0 },

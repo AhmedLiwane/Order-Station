@@ -17,7 +17,7 @@ const Restaurant = new Schema({
   description: { type: String, default: "" },
   specialty: { type: String, require: true },
   address: { type: String, default: "" },
-  responsable: { type: String, default: "" },
+  responsible: { type: String, default: "" },
   email: { type: String, require: true, default: "" },
   phone: { type: Number, require: true },
   transactions: { type: Array, default: [] },

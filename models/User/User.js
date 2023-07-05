@@ -22,6 +22,7 @@ const User = new Schema({
   idCompany: { type: String, default: "" },
   otp: { type: String, default: "" },
   token: { type: String, default: "" },
+  role: { type: String, default: "" },
   loginHistory: { type: Array, default: [] },
   transactions: { type: Array, default: [] },
   isArchived: { type: Boolean, default: false },
@@ -29,7 +30,7 @@ const User = new Schema({
   paymentHistory: { type: Array, default: [] },
   withdrawHistory: { type: Array, default: [] },
   authMethod: { type: String, default: "regular" },
-  picture: { type: String, default: "" },
+  photo: { type: String, default: "" },
   notifications: { type: Array, default: [Notification] },
   cardDetails: {
     cardNumber: { type: String, default: "" },
