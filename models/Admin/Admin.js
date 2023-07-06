@@ -13,6 +13,8 @@ const Admin = new Schema({
   password: { type: String, require: true },
   phone: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now() },
+  token: { type: String, default: "" },
+  otp: { type: String, default: "" },
   loginHistory: { type: Array, default: [] },
 });
 

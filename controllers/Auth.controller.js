@@ -1,15 +1,16 @@
+const UserModel = require("../models/User/User");
+const AdminModel = require("../models/Admin/Admin");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+
 exports.resetPassword = async (req, res) => {
   try {
     var { email } = req.body;
     email = email.toLowerCase();
-    let foundUser = await UserModel.findOne({ email });
-    let foundCompany = await CompanyModel.findOne({ companyEmail: email });
-    let foundRestaurant = await RestaurantModel.findOne({
-      restaurantEmail: email,
-    });
-    let foundAdmin = await AdminModel.findOne({ email });
+    let foundUser = await UserModel.findOne({ email, isArchived: false });
+    let foundAdmin = await AdminModel.findOne({ email, isArchived: false });
 
-    if (!foundUser && !foundCompany && !foundAdmin && !foundRestaurant)
+    if (!foundUser && !foundAdmin)
       return res.status(404).send({
         message: "Account not found",
         code: 404,
@@ -32,71 +33,24 @@ exports.resetPassword = async (req, res) => {
       foundUser.token = token;
       await foundUser.save();
 
-      await resetPassword(
-        email,
-        resetLink,
-        foundUser.firstName + "" + foundUser.lastName
-      );
+      // await resetPassword(
+      //   email,
+      //   resetLink,
+      //   foundUser.firstName + "" + foundUser.lastName
+      // );
 
       res.status(200).send({
         message: "Sent a verification link to your email.",
         code: 200,
         success: true,
         date: Date.now(),
-      });
-    } else if (foundCompany) {
-      const token = jwt.sign(
-        {
-          id: foundCompany.id,
-          role: "company",
-          email: foundCompany.companyEmail,
-          subject: "resetPassword",
-        },
-        process.env.SECRET_KEY,
-        { expiresIn: "24h" }
-      );
-      const resetLink =
-        "https://dev-admin.semsemapp.com/reset-password/" + token;
-      foundCompany.token = token;
-      await foundCompany.save();
-
-      await resetPassword(companyEmail, resetLink, foundCompany.companyName);
-
-      res.status(200).send({
-        message: "Sent a verification link to your company's email.",
-        code: 200,
-        success: true,
-        date: Date.now(),
-      });
-    } else if (foundRestaurant) {
-      const token = jwt.sign(
-        {
-          id: foundRestaurant.id,
-          role: "restaurant",
-          email: foundRestaurant.restaurantEmail,
-          subject: "resetPassword",
-        },
-        process.env.SECRET_KEY,
-        { expiresIn: "24h" }
-      );
-      const resetLink =
-        "https://dev-admin.semsemapp.com/reset-password/" + token;
-      foundRestaurant.token = token;
-      await foundRestaurant.save();
-
-      await resetPassword(email, resetLink, foundRestaurant.restaurantName);
-
-      res.status(200).send({
-        message: "Sent a verification link to your email.",
-        code: 200,
-        success: true,
-        date: Date.now(),
+        token,
       });
     } else if (foundAdmin) {
       const token = jwt.sign(
         {
           id: foundAdmin.id,
-          role: "backoffice",
+          role: foundAdmin.role,
           email: foundAdmin.email,
           subject: "resetPassword",
         },
@@ -108,13 +62,14 @@ exports.resetPassword = async (req, res) => {
       foundAdmin.token = token;
       await foundAdmin.save();
 
-      await resetPassword(email, resetLink, foundAdmin.userFullName);
+      // await resetPassword(email, resetLink, foundAdmin.userFullName);
 
       res.status(200).send({
         message: "Sent a verification link to your email.",
         code: 200,
         success: true,
         date: Date.now(),
+        token,
       });
     }
   } catch (error) {
@@ -129,24 +84,21 @@ exports.resetPassword = async (req, res) => {
 };
 
 exports.confirmResetPassword = async (req, res) => {
-  const token = req.headers["x-order-token"];
   try {
+    const token = req.headers["x-order-token"];
     const decoded = jwt.verify(token, process.env.SECRET_KEY);
     if (decoded.subject === "resetPassword") {
       var { password } = req.body;
-      if (decoded.role === "regular") {
-        const foundUser = await UserModel.findOne({
-          id: decoded.id,
-          email: decoded.email,
-          token: token,
-        });
-        if (!foundUser)
-          return res.status(404).send({
-            message: "User not found",
-            code: 404,
-            success: false,
-            date: Date.now(),
-          });
+      const foundAdmin = await AdminModel.findOne({
+        id: decoded.id,
+        isArchived: false,
+      });
+      const foundUser = await UserModel.findOne({
+        id: decoded.id,
+        isArchived: false,
+      });
+
+      if (foundUser && foundUser.token === token) {
         foundUser.token = "";
         foundUser.password = await bcrypt.hash(password, 10);
         await foundUser.save();
@@ -156,44 +108,7 @@ exports.confirmResetPassword = async (req, res) => {
           success: true,
           date: Date.now(),
         });
-      } else if (decoded.role === "company") {
-        const foundCompany = await CompanyModel.findOne({
-          id: decoded.id,
-          companyEmail: decoded.email,
-          token: decoded.token,
-        });
-        if (!foundCompany)
-          return res.status(404).send({
-            message: "User not found",
-            code: 404,
-            success: false,
-            date: Date.now(),
-          });
-        foundCompany.token = "";
-        foundCompany.companyPassword = await bcrypt.hash(password, 10);
-        await foundCompany.save();
-        res.status(200).send({
-          message: "Password reset successfully",
-          code: 200,
-          success: true,
-          date: Date.now(),
-        });
-      } else if (
-        decoded.role === "commercial" ||
-        decoded.role === "superadmin"
-      ) {
-        const foundAdmin = await AdminModel.findOne({
-          id: decoded.id,
-          email: decoded.email,
-          token: decoded.token,
-        });
-        if (!foundAdmin)
-          return res.status(404).send({
-            message: "User not found",
-            code: 404,
-            success: false,
-            date: Date.now(),
-          });
+      } else if (foundAdmin && foundAdmin.token === token) {
         foundAdmin.token = "";
         foundAdmin.password = await bcrypt.hash(password, 10);
         await foundAdmin.save();
@@ -201,6 +116,13 @@ exports.confirmResetPassword = async (req, res) => {
           message: "Password reset successfully",
           code: 200,
           success: true,
+          date: Date.now(),
+        });
+      } else {
+        return res.status(404).send({
+          message: "Account not found",
+          code: 404,
+          success: false,
           date: Date.now(),
         });
       }

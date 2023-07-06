@@ -187,7 +187,7 @@ exports.editProfile = async (req, res) => {
   try {
     const token = req["cookies"]["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
-    const { values } = req.body;
+    const values = req.body;
 
     if (values.email) {
       const foundEmail = await AdminModel.findOne({ email: values.email });
@@ -465,7 +465,7 @@ exports.editCompany = async (req, res) => {
       });
     }
     const id = req.params["id"];
-    let { values } = req.body;
+    let values = req.body;
 
     const foundCompany = await CompanyModel.findOneAndUpdate(
       {

@@ -17,6 +17,7 @@ const Company = new Schema({
   createdAt: { type: Date, default: Date.now() },
   image: { type: String, default: "" },
   users: { type: Array, default: [] },
+  restaurants: { type: Array, default: [] },
   type: { type: String, default: "" },
   matricule: { type: String, required: true },
   isActive: { type: Boolean, default: true },

@@ -12,22 +12,23 @@ const { Schema } = mongoose;
 
 const Restaurant = new Schema({
   id: { type: String, require: true, index: { unique: true } },
+  idCompany: { type: String, require: true },
   createdAt: { type: Date, default: Date.now() },
   name: { type: String, require: true },
   description: { type: String, default: "" },
   specialty: { type: String, require: true },
   address: { type: String, default: "" },
   responsible: { type: String, default: "" },
-  email: { type: String, require: true, default: "" },
-  phone: { type: Number, require: true },
+  email: { type: String, require: true },
+  phone: { type: Number, default: "" },
   transactions: { type: Array, default: [] },
   isArchived: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
   logo: { type: String, default: "" },
   cover: { type: String, default: "" },
   visiblity: {
-    glovo: { type: Object },
-    jumia: { type: Object },
+    glovo: { type: Boolean },
+    jumia: { type: Boolean },
     onPlace: { type: Boolean },
   },
   bankDetails: {
