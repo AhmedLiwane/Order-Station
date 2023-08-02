@@ -65,13 +65,13 @@ exports.login = async (req, res) => {
           }
         );
         foundAdmin.save();
-        res.cookie("x-order-token", token);
 
         return res.status(200).json({
           message: "Login success",
           code: 200,
           success: true,
           date: Date.now(),
+          token,
         });
       } else {
         foundAdmin.loginHistory.push({
@@ -152,7 +152,7 @@ exports.createAdmin = async (req, res) => {
 
 exports.viewProfile = async (req, res) => {
   try {
-    const token = req["cookies"]["x-order-token"];
+    const token = req.headers["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
     let foundAdmin = await AdminModel.findOne({ id: user.id }).select(
       "-password -loginHistory -__v -_id -isActive -isArchived"
@@ -185,7 +185,7 @@ exports.viewProfile = async (req, res) => {
 
 exports.editProfile = async (req, res) => {
   try {
-    const token = req["cookies"]["x-order-token"];
+    const token = req.headers["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
     const values = req.body;
 
@@ -234,7 +234,7 @@ exports.editProfile = async (req, res) => {
 
 exports.changePassword = async (req, res) => {
   try {
-    const token = req["cookies"]["x-order-token"];
+    const token = req.headers["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
     const foundAdmin = await AdminModel.findOne({
       id: user.id,
@@ -304,7 +304,7 @@ exports.changePassword = async (req, res) => {
 
 exports.getCompanies = async (req, res) => {
   try {
-    const token = req["cookies"]["x-order-token"];
+    const token = req.headers["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
 
     const foundAdmin = await AdminModel.findOne({
@@ -343,7 +343,7 @@ exports.getCompanies = async (req, res) => {
 
 exports.createCompany = async (req, res) => {
   try {
-    const token = req["cookies"]["x-order-token"];
+    const token = req.headers["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
 
     const foundAdmin = await AdminModel.findOne({
@@ -402,7 +402,7 @@ exports.createCompany = async (req, res) => {
 
 exports.viewCompany = async (req, res) => {
   try {
-    const token = req["cookies"]["x-order-token"];
+    const token = req.headers["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
 
     const foundAdmin = await AdminModel.findOne({
@@ -450,7 +450,7 @@ exports.viewCompany = async (req, res) => {
 
 exports.editCompany = async (req, res) => {
   try {
-    const token = req["cookies"]["x-order-token"];
+    const token = req.headers["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
 
     const foundAdmin = await AdminModel.findOne({
@@ -501,7 +501,7 @@ exports.editCompany = async (req, res) => {
 
 exports.udpateCompany = async (req, res) => {
   try {
-    const token = req["cookies"]["x-order-token"];
+    const token = req.headers["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
 
     const foundAdmin = await AdminModel.findOne({
@@ -560,7 +560,7 @@ exports.udpateCompany = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const token = req["cookies"]["x-order-token"];
+    const token = req.headers["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
 
     const foundAdmin = await AdminModel.findOne({

@@ -99,6 +99,15 @@ exports.confirmResetPassword = async (req, res) => {
       });
 
       if (foundUser && foundUser.token === token) {
+        const isSame = await bcrypt.compare(password, foundUser.password);
+        if (isSame) {
+          return res.status(406).send({
+            message: "Your new password cannot be your old one",
+            code: 406,
+            success: false,
+            date: Date.now(),
+          });
+        }
         foundUser.token = "";
         foundUser.password = await bcrypt.hash(password, 10);
         await foundUser.save();
@@ -135,6 +144,7 @@ exports.confirmResetPassword = async (req, res) => {
       });
     }
   } catch (err) {
+    console.log(err);
     res.status(500).send({
       message:
         "This error is coming from confirmResetPassword endpoint, please report it to the sys administrator!",

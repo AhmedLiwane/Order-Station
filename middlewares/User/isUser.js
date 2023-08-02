@@ -1,10 +1,10 @@
 const jwt = require("jsonwebtoken");
 
 exports.isUser = async (req, res, next) => {
-  const token = req["cookies"]["x-order-token"];
+  const token = req.headers["x-order-token"];
   if (!token) {
     res.status(403).send({
-      message: "Please provide semsem token in the cookies",
+      message: "Please provide order station token in the headers",
       code: 403,
       success: false,
       date: Date.now(),
@@ -33,7 +33,7 @@ exports.isUser = async (req, res, next) => {
     } catch (err) {
       res.status(500).send({
         message:
-          "This error is coming from isuser middleware, please report to the sys useristrator !",
+          "This error is coming from isUser middleware, please report to the sys useristrator !",
         code: 500,
         success: false,
         date: Date.now(),

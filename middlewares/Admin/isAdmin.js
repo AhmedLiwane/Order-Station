@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 
 exports.isAdmin = async (req, res, next) => {
-  const token = req["cookies"]["x-order-token"];
+  const token = req.headers["x-order-token"];
   if (!token) {
     res.status(403).send({
       message: "Please provide semsem token in the cookies",

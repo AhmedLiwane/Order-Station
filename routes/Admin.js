@@ -11,7 +11,6 @@ const {
   editCompany,
   udpateCompany,
   viewCompany,
-  removeCompanyAdmin,
   createUser,
 } = require("../controllers/Admin.controller");
 const { isAdmin } = require("../middlewares/Admin/isAdmin");

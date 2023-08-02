@@ -22,7 +22,7 @@ const Company = new Schema({
   matricule: { type: String, required: true },
   isActive: { type: Boolean, default: true },
   isArchived: { type: Boolean, default: false },
-  transactions: { type: Array, default: [] },
+  paymentHistory: { type: Array, default: [] },
   orders: { type: Array, default: [] },
   features: { type: Array, default: [] },
 });
