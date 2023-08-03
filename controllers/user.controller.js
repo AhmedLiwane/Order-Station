@@ -2207,9 +2207,8 @@ exports.addProduct = async (req, res) => {
       date: Date.now(),
       data: newProduct,
     });
-    let Promise1, Promise2, Promise3, Promise4;
 
-    Promise1 = restaurants.map(async (idVendor) => {
+    const Promise1 = restaurants.map(async (idVendor) => {
       const foundVendor = await RestaurantModel.findOne({
         id: idVendor,
         idCompany: foundCompany.id,
@@ -2218,8 +2217,9 @@ exports.addProduct = async (req, res) => {
       foundVendor.products.push(idProduct);
       await foundVendor.save();
     });
+    await Promise.all(Promise1);
     if (defaultIngredients && defaultIngredients[0]) {
-      Promise2 = defaultIngredients.map(async (ingredient) => {
+      const Promise2 = defaultIngredients.map(async (ingredient) => {
         const foundIngredient = await IngredientModel.findOne({
           id: ingredient.ingredient,
           isSupplement: false,
@@ -2231,9 +2231,10 @@ exports.addProduct = async (req, res) => {
           await foundIngredient.save();
         }
       });
+      await Promise.all(Promise2);
     }
     if (choices && choices[0]) {
-      Promise3 = choices.map(async (choice) => {
+      const Promise3 = choices.map(async (choice) => {
         const insidePromise = choice.ingredients.map(async (ingredient) => {
           const foundIngredient = await IngredientModel.findOne({
             id: ingredient,
@@ -2248,9 +2249,10 @@ exports.addProduct = async (req, res) => {
         });
         await Promise.all(insidePromise);
       });
+      await Promise.all(Promise3);
     }
     if (supplements && supplements[0]) {
-      Promise4 = supplements.map(async (supplement) => {
+      const Promise4 = supplements.map(async (supplement) => {
         const foundSupplement = await IngredientModel.findOne({
           id: supplement,
           isSupplement: true,
@@ -2260,10 +2262,9 @@ exports.addProduct = async (req, res) => {
         foundSupplement.products.push(idProduct);
         await foundSupplement.save();
       });
+      await Promise.all(Promise4);
     }
-    await Promise.all(Promise1, Promise2, Promise3, Promise4);
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from addProduct endpoint, please report to the sys administrator !",

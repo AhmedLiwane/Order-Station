@@ -4,6 +4,7 @@ const morgan = require("morgan");
 const User = require("./routes/User");
 const Admin = require("./routes/Admin");
 const Auth = require("./routes/Auth");
+const Scan = require("./routes/Scan");
 var bodyParser = require("body-parser");
 var cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
@@ -66,6 +67,9 @@ app.use("/api/admin", Admin, function (req, res) {
   res.header("Access-Control-Allow-Origin", "*");
 });
 app.use("/api/auth", Auth, function (req, res) {
+  res.header("Access-Control-Allow-Origin", "*");
+});
+app.use("/api/scan", Scan, function (req, res) {
   res.header("Access-Control-Allow-Origin", "*");
 });
 
