@@ -102,6 +102,7 @@ exports.createOrder = async (req, res) => {
     const { table, isPickup, usedCoupon, waiter, products, restaurant } =
       req.body;
 
+    // Check if there's any missing arguments
     if (!table || !waiter || !products || !restaurant) {
       return res.status(400).send({
         message: "Missing details",
@@ -110,7 +111,7 @@ exports.createOrder = async (req, res) => {
         date: Date.now(),
       });
     }
-
+    // Check viablity of the vendor
     const foundRestaurant = await RestaurantModel.findOne({
       id: restaurant,
       isArchived: false,
@@ -127,6 +128,8 @@ exports.createOrder = async (req, res) => {
         date: Date.now(),
       });
     }
+    // Check viablity of the table and check if it's available
+    // Later when we add online payment, open/close table automatically
     let foundTable;
     if (isPickup) {
       foundTable = await TableModel.findOne({
@@ -153,6 +156,7 @@ exports.createOrder = async (req, res) => {
         date: Date.now(),
       });
     }
+    // Check viablity of the waiter
     const foundWaiter = await UserModel.findOne({
       id: waiter,
       role: "waiter",
@@ -167,6 +171,7 @@ exports.createOrder = async (req, res) => {
         date: Date.now(),
       });
     }
+    // Create new instance of an Order
     const idOrder = uuidv4();
     let newOrder = new OrderModel({
       id: idOrder,
@@ -177,7 +182,10 @@ exports.createOrder = async (req, res) => {
       platform: "onPlace",
       status: "Pending",
       products,
+      usedCoupon,
+      productsTotalPrice: 0,
     });
+    // Start calculating products price
     let productsTotal = 0;
     for (let product of products) {
       const foundProduct = await ProductModel.findOne({
@@ -197,8 +205,9 @@ exports.createOrder = async (req, res) => {
         });
       }
       productsTotal += foundProduct.price * product.quantity;
+      // Test choices viability
       if (product.choices && product.choices[0]) {
-        for (let ingredient in product.choices) {
+        for (let ingredient of product.choices) {
           const foundIngredient = await IngredientModel.findOne({
             id: ingredient,
             isSupplement: false,
@@ -207,7 +216,7 @@ exports.createOrder = async (req, res) => {
           });
           if (!foundIngredient) {
             return res.status(404).send({
-              message: "Product not found or doesn't belong to this vendor",
+              message: "Ingredient not found or doesn't belong to this vendor",
               code: 404,
               success: false,
               date: Date.now(),
@@ -215,6 +224,7 @@ exports.createOrder = async (req, res) => {
           }
         }
       }
+      // Test supplements viability and add to products total price
       if (product.extra && product.extra[0]) {
         const extras = await IngredientModel.find({
           id: { $in: product.extra },
@@ -223,13 +233,14 @@ exports.createOrder = async (req, res) => {
           isArchived: false,
         });
         if (extras && extras[0]) {
-          for (let extra in extras) {
+          for (let extra of extras) {
             productsTotal += extra.price;
           }
         }
       }
     }
     newOrder.productsTotalPrice = productsTotal;
+    // Check if coupon exists, dicount the amount
     if (usedCoupon !== "") {
       const foundCoupon = await CouponModel.findOne({
         code: usedCoupon,
@@ -271,7 +282,7 @@ exports.createOrder = async (req, res) => {
         } else {
           foundCoupon.quantity -= 1;
         }
-      } else if (isUsed) {
+      } else if (foundCoupon.isUsed) {
         return res.status(406).send({
           message: "Coupon already used",
           code: 406,
@@ -282,38 +293,47 @@ exports.createOrder = async (req, res) => {
         foundCoupon.isUsed = true;
       }
       let discountedAmount;
+
       if (foundCoupon.percentage) {
         discountedAmount = productsTotal * (foundCoupon.amount / 100);
-        newOrder.productsTotalPrice = productsTotal - discountedAmount;
+
+        newOrder.totalPrice += newOrder.productsTotalPrice - discountedAmount;
+
         newOrder.discountedAmount = discountedAmount;
       } else {
         discountedAmount = foundCoupon.amount;
-        newOrder.productsTotalPrice = productsTotal - discountedAmount;
+        newOrder.totalPrice += newOrder.productsTotalPrice - discountedAmount;
         newOrder.discountedAmount = discountedAmount;
       }
       await foundCoupon.save();
     }
-    newOrder.totalPrice +=
-      newOrder.productsTotalPrice +
-      (newOrder.productsTotalPrice * newOrder.tva) / 100;
+    // Calculate TVA
+    // newOrder.totalPrice +=
+    //   newOrder.productsTotalPrice +
+    //   (newOrder.productsTotalPrice * newOrder.tva) / 100;
+
+    // Check if there are delivery fees
     if (newOrder.deliveryFee > 0) {
       newOrder.totalPrice += newOrder.deliveryFee;
     }
-    if (!isPickup) {
-      foundTable.isAvailable = false;
-      foundTable.order = idOrder;
-      foundTable.save();
-    }
+
+    // Save order details and add order id to the vendor's list
     foundRestaurant.orders.push(idOrder);
     await foundRestaurant.save();
     await newOrder.save();
-    return res.status(200).send({
+    res.status(200).send({
       message: "Created order",
       code: 200,
       success: true,
       date: Date.now(),
       data: newOrder,
     });
+    // Change table status if not pick up
+    if (!isPickup) {
+      foundTable.isAvailable = false;
+      foundTable.order = idOrder;
+      foundTable.save();
+    }
   } catch (error) {
     res.status(500).send({
       message:
@@ -350,7 +370,7 @@ exports.getOrderDetails = async (req, res) => {
         date: Date.now(),
       });
     }
-    const foundOrder = await OrderModel.findOne({
+    let foundOrder = await OrderModel.findOne({
       id: idOrder,
       isArchived: false,
       idCompany: foundCompany.id,
@@ -364,7 +384,47 @@ exports.getOrderDetails = async (req, res) => {
         date: Date.now(),
       });
     }
-
+    const foundWaiter = await UserModel.findOne({
+      id: foundOrder.waiter,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    });
+    foundOrder.waiter = foundWaiter.name + " " + foundWaiter.surname;
+    const foundTable = await TableModel.findOne({
+      id: foundOrder.table,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    });
+    foundOrder.table = foundTable.tableNumber;
+    const foundRestaurant = await RestaurantModel.findOne({
+      id: foundOrder.restaurant,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    });
+    foundOrder.restaurant = foundRestaurant.name;
+    const myPromise = foundOrder.products.map(async (object) => {
+      const foundProduct = await ProductModel.findOne({
+        id: object.productID,
+        isArchived: false,
+        idCompany: foundCompany.id,
+      });
+      object.productID = foundProduct.name;
+      const foundIngredients = await IngredientModel.find({
+        id: { $in: object.choices },
+        isArchived: false,
+        isSupplement: false,
+        idCompany: foundCompany.id,
+      }).select("name -_id");
+      object.choices = foundIngredients;
+      const foundSupplements = await IngredientModel.find({
+        id: { $in: object.extra },
+        isArchived: false,
+        isSupplement: true,
+        idCompany: foundCompany.id,
+      }).select("name -_id");
+      object.extra = foundSupplements;
+    });
+    await Promise.all(myPromise);
     res.status(200).send({
       message: "Fetched order",
       code: 200,
@@ -678,7 +738,7 @@ exports.getProductSupplements = async (req, res) => {
       idCompany: foundCompany.id,
       isArchived: false,
       isSupplement: true,
-    });
+    }).select("id name price priority -_id");
 
     return res.status(200).send({
       message: "Fetched supplements",

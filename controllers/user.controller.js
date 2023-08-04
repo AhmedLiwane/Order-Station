@@ -4293,7 +4293,7 @@ exports.createCoupon = async (req, res) => {
       startDate,
       endDate,
     } = req.body;
-    if (!amount || !restaurant || !percentage || !multiUse) {
+    if (!amount || !restaurant) {
       return res.status(400).send({
         message: "Missing details",
         code: 400,
