@@ -289,6 +289,26 @@ exports.createOrder = async (req, res) => {
           success: false,
           date: Date.now(),
         });
+      } else if (
+        foundCoupon.startDate &&
+        new Date(foundCoupon.startDate) > new Date()
+      ) {
+        return res.status(406).send({
+          message: "Coupon can't be used yet",
+          code: 406,
+          success: false,
+          date: Date.now(),
+        });
+      } else if (
+        foundCoupon.endDate &&
+        new Date(foundCoupon.endDate) < new Date()
+      ) {
+        return res.status(406).send({
+          message: "Coupon expired",
+          code: 406,
+          success: false,
+          date: Date.now(),
+        });
       } else {
         foundCoupon.isUsed = true;
       }

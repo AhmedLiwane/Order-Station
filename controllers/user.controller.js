@@ -23,10 +23,10 @@ async function generateRandomCode() {
   return code;
 }
 exports.test = async (req, res) => {
-  let tab1 = [1];
-  let tab2 = [2, 3];
-  tab1 = tab1.concat(tab2);
-  return res.status(200).send({ tab1 });
+  const after = "2023-5-20";
+  const now = new Date();
+  const result = now < new Date(after);
+  return res.status(200).send({ result });
 };
 
 exports.login = async (req, res) => {
