@@ -58,9 +58,10 @@ const {
   editCoupon,
   archiveCoupon,
   restoreCoupon,
-  createOrder,
+  getOrderList,
   getProductSupplements,
   getVendorSupplements,
+  jumiaLogin,
 } = require("../controllers/User.controller");
 const { isUser } = require("../middlewares/User/isUser");
 
@@ -139,10 +140,8 @@ User.put("/editCoupon/:id", use(isUser), use(editCoupon));
 User.put("/archiveCoupon/:id", use(isUser), use(archiveCoupon));
 User.put("/restoreCoupon/:id", use(isUser), use(restoreCoupon));
 
-/* CRUD Orders */
-User.post("/createOrder", use(isUser), use(createOrder));
-User.get("/getOrders", use(isUser), use(getOrders));
-User.get("/getOrderDetails/:id", use(isUser), use(getOrderDetails));
-User.put("/updateStatus/:id", use(isUser), use(updateStatus));
+/* Jumia */
+User.post("/jumiaLogin", use(isUser), use(jumiaLogin));
+User.post("/getOrderList", use(isUser), use(getOrderList));
 
 module.exports = User;

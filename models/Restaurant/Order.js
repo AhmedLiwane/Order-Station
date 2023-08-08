@@ -1,15 +1,6 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
-const Product = new Schema({
-  productID: { type: String },
-  choices: { type: Array },
-  quantity: { type: Number, default: 1 },
-  extra: { type: Array },
-  customerName: { type: String },
-  customerNote: { type: String },
-});
-
 const Order = new Schema({
   id: { type: String, require: true },
   reference: { type: String, require: true },
@@ -25,12 +16,18 @@ const Order = new Schema({
   discountedAmount: { type: Number },
   leftToPayPrice: { type: Number },
   paymentMethod: { type: String, default: "" },
-  products: { type: [Product], default: [] },
+  products: { type: Array, default: [] },
   waiter: { type: String, default: "" },
   table: { type: String, default: "" },
+  isPickup: { type: Boolean, default: false },
   pickupCode: { type: String, default: "" },
-  deliveryPerson: { type: String, default: "" },
+  customerName: { type: String, default: "" },
+  customerComment: { type: String, default: "" },
   restaurant: { type: String, default: "" },
+  idOrderJumia: { type: String, default: "" },
+  vendorName: { type: String, default: "" },
+  vendorPhone: { type: String, default: "" },
+  statusFlow: { type: Array, default: [] },
 });
 
 const OrderModel = mongoose.model("Order", Order);

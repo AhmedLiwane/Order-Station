@@ -1,8 +1,4 @@
 const UserModel = require("../models/User/User");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const { v4: uuidv4 } = require("uuid");
-const parser = require("ua-parser-js");
 const CompanyModel = require("../models/Company/Company");
 const OrderModel = require("../models/Restaurant/Order");
 const RestaurantModel = require("../models/Restaurant/Restaurant");
@@ -11,7 +7,17 @@ const ProductModel = require("../models/Restaurant/Product");
 const CategoryModel = require("../models/Restaurant/Category");
 const TableModel = require("../models/Restaurant/Table");
 const CouponModel = require("../models/Restaurant/Coupon");
-
+const JumiaModel = require("../models/Partners/Jumia");
+const JumiaOrderModel = require("../models/Partners/JumiaOrder");
+const parser = require("ua-parser-js");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid");
+const { decryptData, encryptData } = require("../functions/encryptionUtils");
+const { default: axios } = require("axios");
+const io = require("socket.io")(5001, {
+  cors: { origin: "*" },
+});
 async function generateRandomCode() {
   var characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   var code = "";
@@ -23,10 +29,73 @@ async function generateRandomCode() {
   return code;
 }
 exports.test = async (req, res) => {
-  const after = "2023-5-20";
-  const now = new Date();
-  const result = now < new Date(after);
-  return res.status(200).send({ result });
+  try {
+    const headers = {
+      Authorization:
+        "Bearer " +
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InJoLmdoYXplbGxhLmNsb3Vka2l0Y2hlbkBnbWFpbC5jb20iLCJtZSI6eyJpZCI6MTM0NywiZW1haWwiOiJyaC5naGF6ZWxsYS5jbG91ZGtpdGNoZW5AZ21haWwuY29tIn0sInN1YiI6MTM0NywiaXNzIjoidmVuZG9yLWdsb2JhbC1hcGkuZm9vZC5qdW1pYS5jb20udG4iLCJpYXQiOjE2OTEzNjk4NDN9.j9w2u3g7_OspU4vCs0VT_8B6dESWxDnMUNCGK8ELDQwfzKGe2zLUyFmI1Mje1Vkq5JBOfGpmCwHbBzTayIg6gqA3L6bKZNXj5Lsyl51Ttau6v-95s4ORN_IFW4yAnK0PnlM8nOfAZzH8U9VaQ_ng4HjsWL_YMUtIbtKVdRXNXGjwIRfUgfBSLV4AxxrrOwZXlSt0XclisVZuh4V2bXj3gJiwGXafP_gpKgzYuglgG_yEbFTCq57tTS8q8ih_flUz8hCFS8ejY-F_6lRn6Unt1hamZBhrmfPQnbDvBJMBQ6fHD3f6S7CI5ljxkY59cxxaVhMMU1Ut-ux6TehQ0r1JyLYve5IlQSuCBtoRWyHI-43L65aNKsYuDZrhe7mT8rHlu_tpA5WxrjDlpj5NhhqBpPIhw5e6j_Yupj8eheIr4ELmPi1lWV5MWO3rH-OmfnDpiMdNwnzY3rcolNu_6nTFT5aR2L9ogRAAfeCzpwNvCqJDbOszko8OfuVuUe9I9CL60_wEgTLOncbApUPqtTA7t2q1O7E2c42eCWiDeJNIINCVa1pEvgFFZ5QRY9Zu4L3k9A_meNhlAGjAhGOwRHXfako2NATjdY7iRElLdprc6R-TlOoNkOJzY_ml-9u9n33p0jaAaxoZFa2jrobTtc6odE0SOTYtlDR5HTS7NWTEzQg",
+    };
+    await axios
+      .get(
+        "https://vendor-global-api.food.jumia.com.tn/v1/orders?limit=10&page=1",
+        { headers }
+      )
+      .then(async (result) => {
+        const orderList = result.data;
+        const myPromise = orderList.map(async (order) => {
+          await axios
+            .get(
+              `https://vendor-global-api.food.jumia.com.tn/v1/orders/${order.id}`,
+              { headers }
+            )
+            .then(async (orderResult) => {
+              const orderJumia = orderResult.data;
+              const foundJumiaOrder = await JumiaOrderModel.findOne({
+                "details.id": orderJumia.id,
+              });
+              if (!foundJumiaOrder) {
+                const idOrder = uuidv4();
+                const idJumiaOrder = uuidv4();
+                let newJumiaOrder = new JumiaOrderModel({
+                  id: idJumiaOrder,
+                  details: orderJumia,
+                });
+                let newOrder = new OrderModel({
+                  id: idOrder,
+                  platform: "jumia",
+                  status:
+                    orderJumia.statusFlow[orderJumia.statusFlow.length - 1]
+                      .code,
+                  idJumiaOrder,
+                  reference: orderJumia.code,
+                  createdAt: orderJumia.createdAt,
+                  statusFlow: orderJumia.statusFlow,
+                  productsTotalPrice: orderJumia.subtotalValue,
+                  tva: orderJumia.vatAmount,
+                  deliveryFee: orderJumia.deliveryFee,
+                  totalPrice: orderJumia.totalValue,
+                  paymentMethod: orderJumia.paymentType.isOnlinePayment
+                    ? "online"
+                    : "cash",
+                  products: orderJumia.products,
+                  vendorName: orderJumia.vendorName,
+                  vendorPhone: orderJumia.vendorPhone,
+                  isPickup: orderJumia.isPickup,
+                  restaurant: orderJumia.vendorId,
+                  customerName: orderJumia.customerName,
+                  customerComment: orderJumia.customerComment,
+                });
+                await newOrder.save();
+                await newJumiaOrder.save();
+              }
+            });
+        });
+        await Promise.all(myPromise);
+        res.status(200).send({ result: "success" });
+      });
+  } catch (error) {
+    res.status(500).send({ error });
+  }
 };
 
 exports.login = async (req, res) => {
@@ -4957,3 +5026,171 @@ exports.getOrderDetails = async (req, res) => {
     });
   }
 };
+
+exports.jumiaLogin = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const foundJumia = await JumiaModel.findOne({
+      idCompany: foundCompany.id,
+    });
+    if (!foundJumia)
+      return res.status(404).send({
+        message: "Not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    const email = decryptData(foundJumia.email);
+    const password = decryptData(foundJumia.password);
+
+    await axios
+      .post(process.env.JUMIA_LOGIN_URL, {
+        email,
+        password,
+      })
+      .then(async (result) => {
+        if (result.data.token) {
+          foundJumia.token = encryptData(result.data.token);
+          await foundJumia.save();
+          return res.status(200).send({
+            message: "Success",
+            code: 200,
+            success: false,
+            date: Date.now(),
+          });
+        } else {
+          return res.status(401).send({
+            message: "Wrong credentials",
+            code: 401,
+            success: false,
+            date: Date.now(),
+          });
+        }
+      })
+      .catch((err) => {
+        return res.status(400).send({
+          message: "Something went wrong with the connection to Jumia",
+          code: 400,
+          success: false,
+          date: Date.now(),
+        });
+      });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from jumiaLogin endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
+exports.getOrderList = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const foundJumia = await JumiaModel.findOne({ idCompany: foundCompany.id });
+    if (!foundJumia) {
+      return res.status(404).send({
+        message: "Not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const headers = {
+      Authorization: "Bearer " + decryptData(foundJumia.token),
+    };
+    await axios
+      .get(process.env.JUMIA_ORDER_LIST_URL, { headers })
+      .then(async (result) => {
+        const orderList = result.data;
+        // const myPromise = orderList.map()
+        return res.status(200).send({
+          message: "Success",
+          code: 200,
+          success: false,
+          date: Date.now(),
+          data: orderList,
+        });
+      })
+      .catch((err) => {
+        return res.status(400).send({
+          message: "Something went wrong with the connection to Jumia",
+          code: 400,
+          success: false,
+          date: Date.now(),
+        });
+      });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from getOrderList endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
+// Socket connection
+io.on("connect", (socket) => {
+  socket.on("fetchAllOrder", (idCompany) => {
+    (async function () {
+      try {
+        // Fetch orders logic here
+        socket.broadcast.to(idCompany).emit("fetchedOrders", orders);
+      } catch (error) {
+        return error;
+      }
+    })();
+  });
+});
