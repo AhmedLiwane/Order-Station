@@ -2,13 +2,6 @@ const mongoose = require("mongoose");
 
 const { Schema } = mongoose;
 
-// const Notification = new Schema({
-//   id: { type: String },
-//   createdAt: { type: Date, default: Date.now() },
-//   title: { type: String },
-//   content: { type: String },
-// });
-
 const Company = new Schema({
   id: { type: String, required: true },
   name: { type: String, required: true, default: "" },
@@ -17,6 +10,8 @@ const Company = new Schema({
   createdAt: { type: Date, default: Date.now() },
   image: { type: String, default: "" },
   users: { type: Array, default: [] },
+  idJumia: { type: String, default: "" },
+  idGlovo: { type: String, default: "" },
   restaurants: { type: Array, default: [] },
   type: { type: String, default: "" },
   matricule: { type: String, required: true },

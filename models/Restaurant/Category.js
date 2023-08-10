@@ -10,6 +10,8 @@ const Category = new Schema({
   isArchived: { type: Boolean, default: false },
   image: { type: String, default: "" },
   priority: { type: Number, default: 1 },
+  importedFrom: { type: String, default: "" },
+  importedId: { type: String, default: "" },
   restaurants: { type: Array, default: [] },
 });
 

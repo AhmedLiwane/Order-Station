@@ -16,6 +16,8 @@ const Ingredient = new Schema({
   idCompany: { type: String, default: "" },
   restaurants: { type: Array, default: [] },
   products: { type: Array, default: [] },
+  importedFrom: { type: String, default: "" },
+  importedId: { type: String, default: "" },
   priority: { type: Number, default: 1 },
   visibility: {
     glovo: { type: Boolean },

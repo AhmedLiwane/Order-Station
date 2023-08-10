@@ -22,6 +22,8 @@ const Product = new Schema({
   isAvailable: { type: Boolean, default: true },
   isArchived: { type: Boolean, default: false },
   promoPrice: { type: Number, default: 0 },
+  importedFrom: { type: String, default: "" },
+  importedId: { type: String, default: "" },
   image: { type: String, default: "" },
   priority: { type: Number, default: 1 },
   restaurants: { type: Array, default: [] },

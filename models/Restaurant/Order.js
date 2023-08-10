@@ -28,6 +28,7 @@ const Order = new Schema({
   vendorName: { type: String, default: "" },
   vendorPhone: { type: String, default: "" },
   statusFlow: { type: Array, default: [] },
+  importedFrom: { type: String, default: "" },
 });
 
 const OrderModel = mongoose.model("Order", Order);

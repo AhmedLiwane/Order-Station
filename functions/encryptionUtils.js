@@ -22,7 +22,6 @@ function decryptData(encryptedData) {
 
   // Secret key - generate 32 bytes of random data
   const securityKey = process.env.SECRET_KEY;
-
   const decipher = crypto.createDecipheriv(
     "aes-256-cbc",
     securityKey,

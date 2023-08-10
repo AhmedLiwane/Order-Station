@@ -1,31 +1,62 @@
-const axios = require("axios");
+const { v4: uuidv4 } = require("uuid");
 
-// This array will hold the fetched orders to avoid duplicates
-let fetchedOrders = [];
+async function formatCategory(oldFormat, idCompany) {
+  let newFormat = {
+    id: uuidv4(),
+    idCompany,
+    name: oldFormat.title,
+    image: oldFormat.categoryLogo,
+    importedId: oldFormat.id,
+    importedFrom: "jumia",
+  };
 
-// Fetch new orders and emit to Socket.IO
-const fetchAndEmitOrders = async () => {
-  try {
-    const allOrdersResponse = await axios.get("URL_TO_GET_ALL_ORDERS_API");
-    const recentOrdersResponse = await axios.get(
-      "URL_TO_GET_RECENT_ORDERS_API"
-    );
+  return newFormat;
+}
+async function formatOrder(oldFormat, idJumiaOrder, idCompany) {
+  let newFormat = {
+    id: uuidv4(),
+    idCompany,
+    platform: "jumia",
+    importedFrom: "jumia",
+    status: oldFormat.statusFlow[oldFormat.statusFlow.length - 1].code,
+    idJumiaOrder,
+    reference: oldFormat.code,
+    createdAt: oldFormat.createdAt,
+    statusFlow: oldFormat.statusFlow,
+    productsTotalPrice: oldFormat.subtotalValue,
+    tva: oldFormat.vatAmount,
+    deliveryFee: oldFormat.deliveryFee,
+    totalPrice: oldFormat.totalValue,
+    paymentMethod: oldFormat.paymentType.isOnlinePayment ? "online" : "cash",
+    products: oldFormat.products,
+    vendorName: oldFormat.vendorName,
+    vendorPhone: oldFormat.vendorPhone,
+    isPickup: oldFormat.isPickup,
+    restaurant: oldFormat.vendorId,
+    customerName: oldFormat.customerName,
+    customerComment: oldFormat.customerComment,
+  };
 
-    const allOrders = allOrdersResponse.data;
-    const recentOrders = recentOrdersResponse.data.filter(
-      (order) => !fetchedOrders.includes(order.id)
-    );
+  return newFormat;
+}
 
-    if (recentOrders.length > 0) {
-      fetchedOrders = fetchedOrders.concat(
-        recentOrders.map((order) => order.id)
-      );
-      io.to("order-channel").emit("new-orders", recentOrders);
-    }
-  } catch (error) {
-    console.error("Error fetching orders:", error);
-  }
+async function formatProducts(oldFormat, idCompany) {
+  let newFormat = {
+    id: uuidv4(),
+    idCompany,
+    name: oldFormat.name,
+    description: oldFormat.description,
+    category: oldFormat.category,
+    image: oldFormat.productImage,
+    importedFrom: "jumia",
+    importedId: oldFormat.id,
+  };
+
+  return newFormat;
+}
+
+module.exports = {
+  formatOrder,
+  formatCategory,
+  formatProducts,
 };
-
-// Emit new orders every 2 seconds
-setInterval(fetchAndEmitOrders, 2000);
