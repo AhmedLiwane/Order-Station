@@ -43,6 +43,7 @@ const Restaurant = new Schema({
   coupons: { type: Array, default: [] },
   orders: { type: Array, default: [] },
   tables: { type: Array, default: [] },
+  waiters: { type: Array, default: [] },
 });
 
 const RestaurantModel = mongoose.model("Restaurant", Restaurant);

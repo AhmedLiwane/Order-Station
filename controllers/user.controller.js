@@ -3912,7 +3912,15 @@ exports.addWaiter = async (req, res) => {
       restaurant,
     } = req.body;
 
-    if (!email || !cin || !password || !name || !surname || !restaurant) {
+    if (
+      !email ||
+      !cin ||
+      !password ||
+      !name ||
+      !surname ||
+      !restaurant ||
+      restaurant.length === 0
+    ) {
       return res.status(404).send({
         message: "Missing informations.",
         code: 404,

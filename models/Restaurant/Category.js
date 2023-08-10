@@ -5,6 +5,7 @@ const Category = new Schema({
   id: { type: String, require: true },
   idCompany: { type: String, require: true },
   name: { type: String, require: true },
+  description: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now() },
   isAvailable: { type: Boolean, default: true },
   isArchived: { type: Boolean, default: false },

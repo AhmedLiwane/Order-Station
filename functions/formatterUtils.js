@@ -6,6 +6,7 @@ async function formatCategory(oldFormat, idCompany) {
     idCompany,
     name: oldFormat.title,
     image: oldFormat.categoryLogo,
+    description: oldFormat.description,
     importedId: oldFormat.id,
     importedFrom: "jumia",
   };
