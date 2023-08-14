@@ -26,6 +26,10 @@ const Restaurant = new Schema({
   isActive: { type: Boolean, default: true },
   logo: { type: String, default: "" },
   cover: { type: String, default: "" },
+  latitude: { type: Number, default: "" },
+  longitude: { type: Number, default: "" },
+  importedFrom: { type: String, default: "" },
+  importedId: { type: String, default: "" },
   visibility: {
     glovo: { type: Boolean },
     jumia: { type: Boolean },

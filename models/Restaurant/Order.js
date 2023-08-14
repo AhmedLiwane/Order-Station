@@ -25,10 +25,9 @@ const Order = new Schema({
   customerComment: { type: String, default: "" },
   restaurant: { type: String, default: "" },
   idOrderJumia: { type: String, default: "" },
-  vendorName: { type: String, default: "" },
-  vendorPhone: { type: String, default: "" },
-  statusFlow: { type: Array, default: [] },
+  jumiaStatusFlow: { type: Array, default: [] },
   importedFrom: { type: String, default: "" },
+  importedId: { type: String, default: "" },
 });
 
 const OrderModel = mongoose.model("Order", Order);

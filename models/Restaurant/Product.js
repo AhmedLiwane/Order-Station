@@ -1,11 +1,11 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
-const Choice = new Schema({
-  question: { type: String, default: "" },
-  min: { type: Number, default: 0 },
-  max: { type: Number, default: 0 },
-  ingredients: { type: Array, default: [] },
-});
+// const Choice = new Schema({
+//   question: { type: String, default: "" },
+//   min: { type: Number, default: 0 },
+//   max: { type: Number, default: 0 },
+//   ingredients: { type: Array, default: [] },
+// });
 
 const Product = new Schema({
   id: { type: String, require: true },
@@ -13,7 +13,7 @@ const Product = new Schema({
   description: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now() },
   composable: { type: Boolean, default: false },
-  choices: { type: [Choice], default: [] },
+  choices: { type: Array, default: [] },
   supplements: { type: Array, default: [] },
   defaultIngredients: { type: Array, default: [] },
   foodCost: { type: Number, default: 0 },

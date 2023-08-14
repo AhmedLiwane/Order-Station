@@ -19,7 +19,6 @@ function encryptData(data) {
 function decryptData(encryptedData) {
   // Generate 16 bytes of random data for the initialization vector (IV)
   const initVector = process.env.IV;
-
   // Secret key - generate 32 bytes of random data
   const securityKey = process.env.SECRET_KEY;
   const decipher = crypto.createDecipheriv(
