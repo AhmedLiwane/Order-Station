@@ -58,7 +58,7 @@ const {
   editCoupon,
   archiveCoupon,
   restoreCoupon,
-  getOrderList,
+  importJumiaOrders,
   getProductSupplements,
   getVendorSupplements,
   jumiaLogin,
@@ -147,7 +147,7 @@ User.put("/restoreCoupon/:id", use(isUser), use(restoreCoupon));
 
 /* Jumia */
 User.post("/jumiaLogin", use(isUser), use(jumiaLogin));
-User.post("/getOrderList", use(isUser), use(getOrderList));
+User.post("/importJumiaOrders", use(isUser), use(importJumiaOrders));
 User.post("/importJumiaVendors", use(isUser), use(importJumiaVendors));
 User.post("/importJumiaCategories", use(isUser), use(importJumiaCategories));
 User.post("/importJumiaSupplements", use(isUser), use(importJumiaSupplements));

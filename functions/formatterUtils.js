@@ -76,7 +76,6 @@ async function formatOrder(oldFormat, idJumiaOrder, idCompany) {
     deliveryFee: oldFormat.deliveryFee,
     totalPrice: oldFormat.totalValue,
     paymentMethod: oldFormat.paymentType.isOnlinePayment ? "online" : "cash",
-    products: oldFormat.products,
     isPickup: oldFormat.isPickup,
     customerName: oldFormat.customerName,
     customerComment: oldFormat.customerComment,

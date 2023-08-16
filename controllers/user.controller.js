@@ -35,31 +35,66 @@ async function generateRandomCode() {
   return code;
 }
 exports.test = async (req, res) => {
-  // try {
-  //   const foundJumia = await JumiaModel.findOne({
-  //     id: "fffbd402-3cca-4f6e-b8cf-1394d628cad0",
-  //   });
-  //   const headers = {
-  //     Authorization: "Bearer " + decryptData(foundJumia.token),
-  //   };
-  //   await axios
-  //     .get(
-  //       `https://vendor-global-api.food.jumia.com.tn/v1/vendors/1431/toppings/4240/products`,
-  //       { headers }
-  //     )
-  //     .then((result) => {
-  //       console.log(result.data);
-  //       res.status(200).send({ result: result.data });
-  //     });
-  // } catch (error) {
-  //   res.status(500).send({
-  //     message:
-  //       "This error is coming from login endpoint, please report to the sys administrator !",
-  //     code: 500,
-  //     success: false,
-  //     date: Date.now(),
-  //   });
-  // }
+  try {
+    const foundJumia = await JumiaModel.findOne({
+      id: "fffbd402-3cca-4f6e-b8cf-1394d628cad0",
+    });
+    const headers = {
+      Authorization: "Bearer " + decryptData(foundJumia.token),
+    };
+    const { limit, page } = req.body;
+    await axios
+      .get(
+        `https://vendor-global-api.food.jumia.com.tn/v1/orders?limit=${
+          limit || 100
+        }&page=${page || 1}`,
+        { headers }
+      )
+      .then(async (result) => {
+        const orderList = result.data;
+        const myPromise = orderList.map(async (order) => {
+          await axios
+            .get(
+              `https://vendor-global-api.food.jumia.com.tn/v1/orders/${order.id}`,
+              { headers }
+            )
+            .then(async (orderResult) => {
+              const orderJumia = orderResult.data;
+              orderJumia?.products.map((product) => {
+                const toppingsArray = Object.values(
+                  product?.extras?.toppings
+                ).flatMap((toppingGroup) => {
+                  return toppingGroup.map((topping) => topping.productId);
+                });
+
+                const choicesArray = Object.values(
+                  product?.extras?.choices
+                ).flatMap((choiceGroup) => {
+                  return choiceGroup.map((choice) => choice.productId);
+                });
+                console.log("heeeeeeeeeeeeeere: ", toppingsArray);
+                console.log("here: ", choicesArray);
+              });
+            });
+        });
+        await Promise.all(myPromise);
+        return res.status(200).send({
+          message: "Success",
+          code: 200,
+          success: false,
+          date: Date.now(),
+        });
+      });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({
+      message:
+        "This error is coming from test endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
 };
 
 exports.login = async (req, res) => {
@@ -5084,7 +5119,7 @@ exports.jumiaLogin = async (req, res) => {
   }
 };
 
-exports.getOrderList = async (req, res) => {
+exports.importJumiaOrders = async (req, res) => {
   try {
     const token = req.headers["x-order-token"];
     const user = jwt.verify(token, process.env.SECRET_KEY);
@@ -5124,6 +5159,20 @@ exports.getOrderList = async (req, res) => {
         date: Date.now(),
       });
     }
+    const foundJumiaVendors = await RestaurantModel.find({
+      importedFrom: "jumia",
+      idCompany: foundCompany.id,
+      isArchived: false,
+      isActive: true,
+    });
+    if (!foundJumiaVendors || foundJumiaVendors.length === 0) {
+      return res.status(401).send({
+        message: "Please import Jumia vendors before importing orders",
+        code: 401,
+        success: false,
+        date: Date.now(),
+      });
+    }
     const headers = {
       Authorization: "Bearer " + decryptData(foundJumia.token),
     };
@@ -5155,7 +5204,7 @@ exports.getOrderList = async (req, res) => {
                   details: orderJumia,
                 });
                 const formattedValues = await formatOrder(
-                  foundJumiaOrder,
+                  orderJumia,
                   idJumiaOrder,
                   foundCompany.id
                 );
@@ -5163,9 +5212,38 @@ exports.getOrderList = async (req, res) => {
                 const foundVendor = await RestaurantModel.findOne({
                   idCompany: foundCompany.id,
                   importedFrom: "jumia",
-                  importedId: foundJumiaOrder.id,
+                  importedId: orderJumia.vendorId,
                 });
                 newOrder.restaurant = foundVendor.id;
+                foundVendor.orders.push(newOrder.id);
+                let products = [];
+                const productsPromise = orderJumia.products.map(
+                  async (product) => {
+                    let object = {};
+                    const foundProduct = await ProductModel.findOne({
+                      importedFrom: "jumia",
+                      importedId: product.productId,
+                      idCompany: foundCompany.id,
+                    });
+                    object.product = foundProduct.id;
+                    object.quantity = product.quantity;
+                    const toppingsArray = Object.values(
+                      product?.extras?.toppings
+                    ).flatMap((toppingGroup) => {
+                      return toppingGroup.map((topping) => topping.productId);
+                    });
+
+                    const choicesArray = Object.values(
+                      product?.extras?.choices
+                    ).flatMap((choiceGroup) => {
+                      return choiceGroup.map((choice) => choice.productId);
+                    });
+
+                    object.extra = toppingsArray;
+                    object.choices = choicesArray;
+                  }
+                );
+                await foundVendor.save();
                 await newOrder.save();
                 await newJumiaOrder.save();
               }
@@ -5191,7 +5269,7 @@ exports.getOrderList = async (req, res) => {
   } catch (error) {
     res.status(500).send({
       message:
-        "This error is coming from getOrderList endpoint, please report to the sys administrator !",
+        "This error is coming from importJumiaOrders endpoint, please report to the sys administrator !",
       code: 500,
       success: false,
       date: Date.now(),
