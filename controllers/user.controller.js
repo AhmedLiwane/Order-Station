@@ -23,6 +23,7 @@ const {
   formatSupplement,
 } = require("../functions/formatterUtils.js");
 const { default: axios } = require("axios");
+const { fetchAndEmitOrders } = require("../functions/socketFetchOrders");
 
 async function generateRandomCode() {
   var characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -36,55 +37,12 @@ async function generateRandomCode() {
 }
 exports.test = async (req, res) => {
   try {
-    const foundJumia = await JumiaModel.findOne({
-      id: "fffbd402-3cca-4f6e-b8cf-1394d628cad0",
+    return res.status(200).send({
+      message: "Success",
+      code: 200,
+      success: false,
+      date: Date.now(),
     });
-    const headers = {
-      Authorization: "Bearer " + decryptData(foundJumia.token),
-    };
-    const { limit, page } = req.body;
-    await axios
-      .get(
-        `https://vendor-global-api.food.jumia.com.tn/v1/orders?limit=${
-          limit || 100
-        }&page=${page || 1}`,
-        { headers }
-      )
-      .then(async (result) => {
-        const orderList = result.data;
-        const myPromise = orderList.map(async (order) => {
-          await axios
-            .get(
-              `https://vendor-global-api.food.jumia.com.tn/v1/orders/${order.id}`,
-              { headers }
-            )
-            .then(async (orderResult) => {
-              const orderJumia = orderResult.data;
-              orderJumia?.products.map((product) => {
-                const toppingsArray = Object.values(
-                  product?.extras?.toppings
-                ).flatMap((toppingGroup) => {
-                  return toppingGroup.map((topping) => topping.productId);
-                });
-
-                const choicesArray = Object.values(
-                  product?.extras?.choices
-                ).flatMap((choiceGroup) => {
-                  return choiceGroup.map((choice) => choice.productId);
-                });
-                console.log("heeeeeeeeeeeeeere: ", toppingsArray);
-                console.log("here: ", choicesArray);
-              });
-            });
-        });
-        await Promise.all(myPromise);
-        return res.status(200).send({
-          message: "Success",
-          code: 200,
-          success: false,
-          date: Date.now(),
-        });
-      });
   } catch (error) {
     console.log(error);
     res.status(500).send({
@@ -367,23 +325,16 @@ exports.getOrders = async (req, res) => {
     }
     const foundOrders = await OrderModel.find({
       id: foundCompany.id,
-    }).select("-__v -_id");
-    if (foundOrders && foundOrders[0]) {
-      res.status(200).send({
-        message: "Fetched orders",
-        code: 200,
-        success: true,
-        date: Date.now(),
-      });
-    } else {
-      res.status(200).send({
-        message: "No orders",
-        code: 200,
-        success: true,
-        date: Date.now(),
-        data: [],
-      });
-    }
+    }).select("-__v -_id -products");
+
+    res.status(200).send({
+      message: "Fetched orders",
+      code: 200,
+      success: true,
+      date: Date.now(),
+      data: foundOrders,
+    });
+    setInterval(fetchAndEmitOrders, 2000);
   } catch (error) {
     res.status(500).send({
       message:
@@ -5192,34 +5143,46 @@ exports.importJumiaOrders = async (req, res) => {
               `https://vendor-global-api.food.jumia.com.tn/v1/orders/${order.id}`,
               { headers }
             )
+            // Fetched order details
             .then(async (orderResult) => {
               const orderJumia = orderResult.data;
               const foundJumiaOrder = await JumiaOrderModel.findOne({
                 "details.id": orderJumia.id,
               });
+              // If Jumia order doesn't exist, add it
               if (!foundJumiaOrder) {
                 const idJumiaOrder = uuidv4();
                 let newJumiaOrder = new JumiaOrderModel({
                   id: idJumiaOrder,
                   details: orderJumia,
                 });
+                // Sync Jumia's order to our order schema
                 const formattedValues = await formatOrder(
                   orderJumia,
                   idJumiaOrder,
                   foundCompany.id
                 );
                 let newOrder = new OrderModel(formattedValues);
+                // Replace Jumia's vendor id with our vendor's id
                 const foundVendor = await RestaurantModel.findOne({
                   idCompany: foundCompany.id,
                   importedFrom: "jumia",
                   importedId: orderJumia.vendorId,
                 });
                 newOrder.restaurant = foundVendor.id;
+                // Push order's id to the respective vendor
                 foundVendor.orders.push(newOrder.id);
+                // Sync Jumia's order's products with our product order schema
                 let products = [];
                 const productsPromise = orderJumia.products.map(
                   async (product) => {
-                    let object = {};
+                    let object = {
+                      product: "",
+                      quantity: 0,
+                      extra: [],
+                      choices: [],
+                    };
+                    // Replace Jumia's product id with our product's id
                     const foundProduct = await ProductModel.findOne({
                       importedFrom: "jumia",
                       importedId: product.productId,
@@ -5227,6 +5190,7 @@ exports.importJumiaOrders = async (req, res) => {
                     });
                     object.product = foundProduct.id;
                     object.quantity = product.quantity;
+                    // Format choices & toppings id's as our choices & supplements id's
                     const toppingsArray = Object.values(
                       product?.extras?.toppings
                     ).flatMap((toppingGroup) => {
@@ -5238,11 +5202,27 @@ exports.importJumiaOrders = async (req, res) => {
                     ).flatMap((choiceGroup) => {
                       return choiceGroup.map((choice) => choice.productId);
                     });
-
-                    object.extra = toppingsArray;
-                    object.choices = choicesArray;
+                    const foundSupplements = await IngredientModel.find({
+                      importedId: { $in: toppingsArray },
+                      importedFrom: "jumia",
+                      idCompany: foundCompany.id,
+                    });
+                    foundSupplements.map((supplement) =>
+                      object.extra.push(supplement.id)
+                    );
+                    const foundIngredients = await IngredientModel.find({
+                      importedId: { $in: choicesArray },
+                      importedFrom: "jumia",
+                      idCompany: foundCompany.id,
+                    });
+                    foundIngredients.map((ingredient) =>
+                      object.choices.push(ingredient.id)
+                    );
+                    products.push(object);
                   }
                 );
+                await Promise.all(productsPromise);
+                newOrder.products = products;
                 await foundVendor.save();
                 await newOrder.save();
                 await newJumiaOrder.save();
@@ -5250,12 +5230,11 @@ exports.importJumiaOrders = async (req, res) => {
             });
         });
         await Promise.all(myPromise);
-        return res.status(200).send({
+        res.status(200).send({
           message: "Success",
           code: 200,
           success: false,
           date: Date.now(),
-          data: orderList,
         });
       })
       .catch((err) => {

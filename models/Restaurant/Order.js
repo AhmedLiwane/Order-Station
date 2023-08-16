@@ -24,7 +24,7 @@ const Order = new Schema({
   customerName: { type: String, default: "" },
   customerComment: { type: String, default: "" },
   restaurant: { type: String, default: "" },
-  idOrderJumia: { type: String, default: "" },
+  idJumiaOrder: { type: String, default: "" },
   jumiaStatusFlow: { type: Array, default: [] },
   importedFrom: { type: String, default: "" },
   importedId: { type: String, default: "" },

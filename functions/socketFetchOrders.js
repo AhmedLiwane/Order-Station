@@ -4,11 +4,10 @@ const axios = require("axios");
 let fetchedOrders = [];
 
 // Fetch new orders and emit to Socket.IO
-const fetchAndEmitOrders = async () => {
+const fetchAndEmitOrders = async (idCompany) => {
   try {
-    const allOrdersResponse = await axios.get("URL_TO_GET_ALL_ORDERS_API");
     const recentOrdersResponse = await axios.get(
-      "URL_TO_GET_RECENT_ORDERS_API"
+      "https://vendor-global-api.food.jumia.com.tn/v1/orders/new?limit=10&page=1"
     );
 
     const allOrders = allOrdersResponse.data;
@@ -27,5 +26,4 @@ const fetchAndEmitOrders = async () => {
   }
 };
 
-// Emit new orders every 2 seconds
-setInterval(fetchAndEmitOrders, 2000);
+module.exports = { fetchAndEmitOrders };

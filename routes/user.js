@@ -145,6 +145,9 @@ User.put("/editCoupon/:id", use(isUser), use(editCoupon));
 User.put("/archiveCoupon/:id", use(isUser), use(archiveCoupon));
 User.put("/restoreCoupon/:id", use(isUser), use(restoreCoupon));
 
+/* CRUD Orders */
+User.get("/getOrders", use(isUser), use(getOrders));
+
 /* Jumia */
 User.post("/jumiaLogin", use(isUser), use(jumiaLogin));
 User.post("/importJumiaOrders", use(isUser), use(importJumiaOrders));
