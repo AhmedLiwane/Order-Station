@@ -3,6 +3,7 @@ const { Schema } = mongoose;
 
 const Order = new Schema({
   id: { type: String, require: true },
+  idCompany: { type: String, require: true },
   reference: { type: String, require: true },
   createdAt: { type: Date, default: Date.now() },
   createdBy: { type: String, default: "" },

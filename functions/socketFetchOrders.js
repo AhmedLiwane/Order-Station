@@ -10,6 +10,8 @@ const fetchAndEmitOrders = async (idCompany) => {
       "https://vendor-global-api.food.jumia.com.tn/v1/orders/new?limit=10&page=1"
     );
 
+    // Format new orders, save then send to front
+
     const allOrders = allOrdersResponse.data;
     const recentOrders = recentOrdersResponse.data.filter(
       (order) => !fetchedOrders.includes(order.id)
@@ -27,3 +29,7 @@ const fetchAndEmitOrders = async (idCompany) => {
 };
 
 module.exports = { fetchAndEmitOrders };
+
+// io.on("new-orders", (newOrders) => {
+// add to the already existing order array
+// });

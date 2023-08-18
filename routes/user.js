@@ -4,7 +4,6 @@ const {
   login,
   getOrders,
   getOrderDetails,
-  updateStatus,
   createVendor,
   getVendors,
   editVendor,
@@ -147,6 +146,7 @@ User.put("/restoreCoupon/:id", use(isUser), use(restoreCoupon));
 
 /* CRUD Orders */
 User.get("/getOrders", use(isUser), use(getOrders));
+User.get("/getOrderDetails/:id", use(isUser), use(getOrderDetails));
 
 /* Jumia */
 User.post("/jumiaLogin", use(isUser), use(jumiaLogin));

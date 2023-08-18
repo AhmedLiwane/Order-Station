@@ -324,7 +324,8 @@ exports.getOrders = async (req, res) => {
       });
     }
     const foundOrders = await OrderModel.find({
-      id: foundCompany.id,
+      id: { $in: foundCompany.orders },
+      idCompany: foundCompany.id,
     }).select("-__v -_id -products");
 
     res.status(200).send({
@@ -4952,23 +4953,63 @@ exports.getOrderDetails = async (req, res) => {
       });
     }
     const { id } = req.params;
-    const foundOrder = await OrderModel.findOne({
+    let foundOrder = await OrderModel.findOne({
       id,
+      isArchived: false,
       idCompany: foundCompany.id,
-    }).select("-__v -_id ");
-    if (
-      !foundOrder ||
-      !foundOrder.orders.includes(id) ||
-      !foundCompany.restaurants.includes(foundOrder.restaurant)
-    ) {
+    }).select("-_id -__v");
+
+    if (!foundOrder) {
       return res.status(404).send({
-        message: "Order not found or doesn't belong to your company",
+        message: "Order not found",
         code: 404,
         success: false,
         date: Date.now(),
       });
     }
-
+    const foundWaiter = await UserModel.findOne({
+      id: foundOrder.waiter,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    });
+    if (foundWaiter)
+      foundOrder.waiter = foundWaiter.name + " " + foundWaiter.surname;
+    const foundTable = await TableModel.findOne({
+      id: foundOrder.table,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    });
+    if (foundTable) foundOrder.table = foundTable.tableNumber;
+    const foundRestaurant = await RestaurantModel.findOne({
+      id: foundOrder.restaurant,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    });
+    foundOrder.restaurant = foundRestaurant.name;
+    const myPromise = foundOrder.products.map(async (object) => {
+      const foundProduct = await ProductModel.findOne({
+        id: object.product,
+        isArchived: false,
+        idCompany: foundCompany.id,
+      });
+      object.product = foundProduct.name;
+      object.productPrice = foundProduct.price;
+      const foundIngredients = await IngredientModel.find({
+        id: { $in: object.choices },
+        isArchived: false,
+        isSupplement: false,
+        idCompany: foundCompany.id,
+      }).select("name price -_id");
+      object.choices = foundIngredients;
+      const foundSupplements = await IngredientModel.find({
+        id: { $in: object.extra },
+        isArchived: false,
+        isSupplement: true,
+        idCompany: foundCompany.id,
+      }).select("name price -_id");
+      object.extra = foundSupplements;
+    });
+    await Promise.all(myPromise);
     res.status(200).send({
       message: "Fetched order",
       code: 200,
@@ -4977,6 +5018,7 @@ exports.getOrderDetails = async (req, res) => {
       data: foundOrder,
     });
   } catch (error) {
+    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from getOrderDetails endpoint, please report to the sys administrator !",
@@ -5223,6 +5265,8 @@ exports.importJumiaOrders = async (req, res) => {
                 );
                 await Promise.all(productsPromise);
                 newOrder.products = products;
+                foundCompany.orders.push(newOrder.id);
+                await foundCompany.save();
                 await foundVendor.save();
                 await newOrder.save();
                 await newJumiaOrder.save();
@@ -5231,7 +5275,7 @@ exports.importJumiaOrders = async (req, res) => {
         });
         await Promise.all(myPromise);
         res.status(200).send({
-          message: "Success",
+          message: "Imported orders successfully",
           code: 200,
           success: false,
           date: Date.now(),
