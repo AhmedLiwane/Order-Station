@@ -7,7 +7,7 @@ const Order = new Schema({
   reference: { type: String, require: true },
   createdAt: { type: Date, default: Date.now() },
   createdBy: { type: String, default: "" },
-  status: { type: String, default: "" }, // New - Accepted - Ready - Refused - Paid
+  statusFlow: { type: String, default: "" }, // New - Accepted - Ready - Refused - Paid
   platform: { type: String, default: "" },
   productsTotalPrice: { type: Number, default: 0 },
   tva: { type: Number, default: 7 },
@@ -26,7 +26,6 @@ const Order = new Schema({
   customerComment: { type: String, default: "" },
   restaurant: { type: String, default: "" },
   idJumiaOrder: { type: String, default: "" },
-  jumiaStatusFlow: { type: Array, default: [] },
   importedFrom: { type: String, default: "" },
   importedId: { type: String, default: "" },
 });

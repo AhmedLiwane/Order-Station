@@ -1,15 +1,6 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
-// const Notification = new Schema({
-//   id: { type: String, require: true },
-//   createdAt: { type: String, default: Date.now() },
-//   title: { type: String, default: "" },
-//   content: { type: String, default: "" },
-//   isRead: { type: Boolean, default: false },
-//   isArchived: { type: Boolean, default: false },
-// });
-
 const Restaurant = new Schema({
   id: { type: String, require: true, index: { unique: true } },
   idCompany: { type: String, require: true },
@@ -46,6 +37,7 @@ const Restaurant = new Schema({
   categories: { type: Array, default: [] },
   coupons: { type: Array, default: [] },
   orders: { type: Array, default: [] },
+  choices: { type: Array, default: [] },
   tables: { type: Array, default: [] },
   waiters: { type: Array, default: [] },
 });

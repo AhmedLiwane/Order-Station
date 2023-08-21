@@ -60,17 +60,21 @@ async function formatVendor(oldFormat, idCompany) {
 }
 
 async function formatOrder(oldFormat, idJumiaOrder, idCompany) {
+  const dateObject = new Date(oldFormat.createdAt);
+
+  // Convert to UTC before saving
+  const utcDateString = dateObject.toISOString();
+
   let newFormat = {
     id: uuidv4(),
     idCompany,
     platform: "jumia",
     importedFrom: "jumia",
     importedId: oldFormat.id,
-    status: oldFormat.statusFlow[oldFormat.statusFlow.length - 1].code,
+    statusFlow: oldFormat.statusFlow,
     idJumiaOrder,
     reference: oldFormat.code,
-    createdAt: oldFormat.createdAt,
-    jumiaStatusFlow: oldFormat.statusFlow,
+    createdAt: utcDateString,
     productsTotalPrice: oldFormat.subtotalValue,
     tva: oldFormat.vatAmount,
     deliveryFee: oldFormat.deliveryFee,

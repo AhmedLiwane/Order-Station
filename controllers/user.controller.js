@@ -9,6 +9,7 @@ const TableModel = require("../models/Restaurant/Table");
 const CouponModel = require("../models/Restaurant/Coupon");
 const JumiaModel = require("../models/Partners/Jumia");
 const JumiaOrderModel = require("../models/Partners/JumiaOrder");
+const ChoiceModel = require("../models/Restaurant/Choice");
 const parser = require("ua-parser-js");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -35,16 +36,60 @@ async function generateRandomCode() {
 
   return code;
 }
+
+async function findAndRemoveDuplicateImportedIds() {
+  try {
+    const duplicates = await ProductModel.aggregate([
+      {
+        $group: {
+          _id: "$importedId",
+          count: { $sum: 1 },
+          docs: { $push: "$_id" },
+        },
+      },
+      {
+        $match: {
+          count: { $gt: 1 },
+        },
+      },
+    ]);
+    // for (const duplicate of duplicates) {
+    //   const idsToDelete = duplicate.docs.slice(1); // Keep only duplicate IDs excluding the first one
+
+    //   await IngredientModel.deleteMany({
+    //     _id: { $in: idsToDelete },
+    //   });
+    // }
+    return duplicates;
+  } catch (error) {
+    return {
+      message: "Error in filtering repetitive data",
+      code: 500,
+      success: false,
+      date: Date.now(),
+      error: error.message,
+    };
+  }
+}
+
 exports.test = async (req, res) => {
   try {
+    const originalDateString = "2023-08-16T19:56:37+01:00";
+    const dateObject = new Date(originalDateString);
+
+    // Convert to UTC before saving
+    const utcDateString = dateObject.toISOString();
+    console.log(dateObject);
+    console.log(utcDateString);
+
     return res.status(200).send({
       message: "Success",
       code: 200,
       success: false,
       date: Date.now(),
+      utcDateString,
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from test endpoint, please report to the sys administrator !",
@@ -323,6 +368,7 @@ exports.getOrders = async (req, res) => {
         date: Date.now(),
       });
     }
+
     const foundOrders = await OrderModel.find({
       id: { $in: foundCompany.orders },
       idCompany: foundCompany.id,
@@ -335,7 +381,17 @@ exports.getOrders = async (req, res) => {
       date: Date.now(),
       data: foundOrders,
     });
-    setInterval(fetchAndEmitOrders, 2000);
+    const foundJumia = await JumiaModel.findOne({
+      id: foundCompany.idJumia,
+      idCompany: foundCompany.id,
+      isActive: true,
+    });
+    if (foundJumia) {
+      const headers = {
+        Authorization: "Bearer " + decryptData(foundJumia.token),
+      };
+      setInterval(fetchAndEmitOrders(foundCompany.id, headers), 4000);
+    }
   } catch (error) {
     res.status(500).send({
       message:
@@ -2156,22 +2212,19 @@ exports.addProduct = async (req, res) => {
     if (choices && choices[0]) {
       let exist = true;
       const myPromise = choices.map(async (choice) => {
-        for (let ingredient of choice.ingredients) {
-          const foundIngredient = await IngredientModel.findOne({
-            id: ingredient,
-            isSupplement: false,
-            idCompany: foundCompany.id,
-            isArchived: false,
-          });
-          if (!foundIngredient) {
-            return (exist = false);
-          }
+        const foundChoice = await ChoiceModel.findOne({
+          id: choice,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+        if (!foundChoice) {
+          return (exist = false);
         }
       });
       await Promise.all(myPromise);
       if (!exist) {
         return res.status(404).send({
-          message: "An ingredient in the choices list wasn't found",
+          message: "A choice in the list wasn't found",
           code: 404,
           success: false,
           date: Date.now(),
@@ -2255,19 +2308,13 @@ exports.addProduct = async (req, res) => {
     }
     if (choices && choices[0]) {
       const Promise3 = choices.map(async (choice) => {
-        const insidePromise = choice.ingredients.map(async (ingredient) => {
-          const foundIngredient = await IngredientModel.findOne({
-            id: ingredient,
-            isSupplement: false,
-            idCompany: foundCompany.id,
-            isArchived: false,
-          });
-          if (!foundIngredient.products.includes(idProduct)) {
-            foundIngredient.products.push(idProduct);
-            await foundIngredient.save();
-          }
+        const foundChoice = await ChoiceModel.findOne({
+          id: choice,
+          idCompany: foundCompany.id,
+          isArchived: false,
         });
-        await Promise.all(insidePromise);
+        foundChoice.products.push(idProduct);
+        await foundChoice.save();
       });
       await Promise.all(Promise3);
     }
@@ -2471,19 +2518,6 @@ exports.getProduct = async (req, res) => {
         date: Date.now(),
       });
     }
-    let vendorNameTab = [];
-    const myPromise = foundProduct.restaurants.map(async (idVendor) => {
-      const foundVendor = await RestaurantModel.findOne({
-        id: idVendor,
-        idCompany: foundCompany.id,
-        isArchived: false,
-      });
-      if (foundVendor && foundCompany.restaurants.includes(foundVendor.id)) {
-        vendorNameTab.push(foundVendor.name);
-      }
-    });
-    await Promise.all(myPromise);
-    foundProduct.restaurants = vendorNameTab;
     foundProduct.category = foundCategory.name;
     res.status(200).send({
       message: "Fetched product",
@@ -5576,30 +5610,23 @@ exports.importJumiaSupplements = async (req, res) => {
               .then(async (result) => {
                 const supplements = result.data.toppingProducts;
                 const insidePromise = supplements.map(async (supp) => {
-                  const foundSupplement = await ProductModel.findOne({
+                  const formattedValues = await formatSupplement(
+                    supp,
+                    foundCompany.id
+                  );
+                  let newSupplement = new IngredientModel(formattedValues);
+
+                  const foundVendor = await RestaurantModel.findOne({
                     idCompany: foundCompany.id,
                     importedFrom: "jumia",
-                    importedId: supp.id,
+                    importedId: vendor.importedId,
                   });
-                  if (!foundSupplement) {
-                    const formattedValues = await formatSupplement(
-                      supp,
-                      foundCompany.id
-                    );
-                    let newSupplement = new IngredientModel(formattedValues);
-
-                    const foundVendor = await RestaurantModel.findOne({
-                      idCompany: foundCompany.id,
-                      importedFrom: "jumia",
-                      importedId: vendor.importedId,
-                    });
-                    if (foundVendor) {
-                      newSupplement.restaurants.push(foundVendor.id);
-                      foundVendor.ingredients.push(newSupplement.id);
-                      await foundVendor.save();
-                    }
-                    await newSupplement.save();
+                  if (foundVendor) {
+                    newSupplement.restaurants.push(foundVendor.id);
+                    foundVendor.ingredients.push(newSupplement.id);
+                    await foundVendor.save();
                   }
+                  await newSupplement.save();
                 });
                 await Promise.all(insidePromise);
               });
@@ -5609,12 +5636,13 @@ exports.importJumiaSupplements = async (req, res) => {
         });
     });
     await Promise.all(ingredientsPromise);
-    return res.status(200).send({
+    res.status(200).send({
       message: "Successfully imported supplements",
       code: 200,
       success: true,
       date: Date.now(),
     });
+    findAndRemoveDuplicateImportedIds();
   } catch (error) {
     console.log(error);
     res.status(500).send({
@@ -5703,30 +5731,23 @@ exports.importJumiaIngredients = async (req, res) => {
               .then(async (result) => {
                 const choices = result.data.choiceProducts;
                 const insidePromise = choices.map(async (ingredient) => {
-                  const foundIngredient = await IngredientModel.findOne({
+                  const formattedValues = await formatIngredient(
+                    ingredient,
+                    foundCompany.id
+                  );
+                  let newIngredient = new IngredientModel(formattedValues);
+
+                  const foundVendor = await RestaurantModel.findOne({
                     idCompany: foundCompany.id,
                     importedFrom: "jumia",
-                    importedId: ingredient.id,
+                    importedId: vendor.importedId,
                   });
-                  if (!foundIngredient) {
-                    const formattedValues = await formatIngredient(
-                      ingredient,
-                      foundCompany.id
-                    );
-                    let newIngredient = new IngredientModel(formattedValues);
-
-                    const foundVendor = await RestaurantModel.findOne({
-                      idCompany: foundCompany.id,
-                      importedFrom: "jumia",
-                      importedId: vendor.importedId,
-                    });
-                    if (foundVendor) {
-                      newIngredient.restaurants.push(foundVendor.id);
-                      foundVendor.ingredients.push(newIngredient.id);
-                      await foundVendor.save();
-                    }
-                    await newIngredient.save();
+                  if (foundVendor) {
+                    newIngredient.restaurants.push(foundVendor.id);
+                    foundVendor.ingredients.push(newIngredient.id);
+                    await foundVendor.save();
                   }
+                  await newIngredient.save();
                 });
                 await Promise.all(insidePromise);
               });
@@ -5736,12 +5757,13 @@ exports.importJumiaIngredients = async (req, res) => {
         });
     });
     await Promise.all(ingredientsPromise);
-    return res.status(200).send({
+    res.status(200).send({
       message: "Successfully imported ingredients",
       code: 200,
       success: true,
       date: Date.now(),
     });
+    findAndRemoveDuplicateImportedIds();
   } catch (error) {
     console.log(error);
     res.status(500).send({
@@ -5867,7 +5889,10 @@ exports.importJumiaProducts = async (req, res) => {
                   importedId: vendor.importedId,
                 });
                 if (foundVendor) {
-                  newProduct.restaurants.push(foundVendor.id);
+                  newProduct.restaurants.push({
+                    id: foundVendor.id,
+                    name: foundVendor.name,
+                  });
                   foundVendor.products.push(newProduct.id);
                   await foundVendor.save();
                 }
@@ -5887,10 +5912,123 @@ exports.importJumiaProducts = async (req, res) => {
       date: Date.now(),
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from importJumiaProducts endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+      error,
+    });
+  }
+};
+
+exports.createChoice = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const { question, min, max, choices, products } = req.body;
+    if (!question || !min || !max) {
+      return res.status(400).send({
+        message: "Missing details",
+        code: 400,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const idChoice = uuidv4();
+    let exist = true;
+    if (choices && choices[0]) {
+      const myPromise = choices.map(async (ingredient) => {
+        const foundIngredient = await IngredientModel.findOne({
+          id: ingredient,
+          isSupplement: false,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+        if (!foundIngredient) {
+          return (exist = false);
+        }
+      });
+      await Promise.all(myPromise);
+      if (!exist) {
+        return res.status(404).send({
+          message: "An ingredient in the choices list wasn't found",
+          code: 404,
+          success: false,
+          date: Date.now(),
+        });
+      }
+    }
+
+    if (products && products[0]) {
+      const myPromise = products.map(async (product) => {
+        const foundProduct = await ProductModel.findOne({
+          id: product,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+        if (!foundProduct) {
+          return (exist = false);
+        }
+        foundProduct.choices.push(idChoice);
+        await foundProduct.save();
+      });
+      await Promise.all(myPromise);
+      if (!exist) {
+        return res.status(404).send({
+          message: "A product in the list wasn't found",
+          code: 404,
+          success: false,
+          date: Date.now(),
+        });
+      }
+    }
+    let newChoice = new ChoiceModel({
+      id: idChoice,
+      idCompany: foundCompany.id,
+      question,
+      min,
+      max,
+      choices,
+      products,
+    });
+    await newChoice.save();
+
+    return res.status(200).send({
+      message: "Created new choice",
+      code: 200,
+      success: true,
+      date: Date.now(),
+      data: newChoice,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from createChoice endpoint, please report to the sys administrator !",
       code: 500,
       success: false,
       date: Date.now(),
