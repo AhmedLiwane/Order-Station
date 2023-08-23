@@ -1,15 +1,6 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
-const Notification = new Schema({
-  id: { type: String, require: true },
-  createdAt: { type: String, default: Date.now() },
-  title: { type: String, default: "" },
-  content: { type: String, default: "" },
-  isRead: { type: Boolean, default: false },
-  isArchived: { type: Boolean, default: false },
-});
-
 const User = new Schema({
   id: { type: String, require: true, index: { unique: true } },
   createdAt: { type: Date, default: Date.now() },
@@ -19,7 +10,7 @@ const User = new Schema({
   password: { type: String, require: true },
   cin: { type: String, default: "" },
   birthDate: { type: Date, default: "" },
-  phone: { type: Number, require: true },
+  phone: { type: Number, default: "" },
   isVerified: { type: Boolean, Default: false },
   idCompany: { type: String, default: "" },
   otp: { type: String, default: "" },
@@ -33,7 +24,6 @@ const User = new Schema({
   withdrawHistory: { type: Array, default: [] },
   authMethod: { type: String, default: "regular" },
   photo: { type: String, default: "" },
-  // notifications: { type: Array, default: [Notification] },
   cardDetails: {
     cardNumber: { type: String, default: "" },
     expDate: { type: String, default: "" },

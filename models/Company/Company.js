@@ -5,6 +5,7 @@ const { Schema } = mongoose;
 const Company = new Schema({
   id: { type: String, required: true },
   name: { type: String, required: true, default: "" },
+  description: { type: String, default: "" },
   address: { type: String, required: true, default: "" },
   email: { type: String, required: true, default: "" },
   createdAt: { type: Date, default: Date.now() },

@@ -63,7 +63,16 @@ async function formatOrder(oldFormat, idJumiaOrder, idCompany) {
   const dateObject = new Date(oldFormat.createdAt);
 
   // Convert to UTC before saving
-  const utcDateString = dateObject.toISOString();
+  const utcDateString = dateObject.setHours(dateObject.getHours() + 1);
+
+  const transformedAndAdjustedData = oldFormat.statusFlow.map((item) => {
+    const date = new Date(item.date);
+    date.setHours(date.getHours() + 1); // Add one hour
+    return {
+      ...item,
+      date: date,
+    };
+  });
 
   let newFormat = {
     id: uuidv4(),
@@ -71,7 +80,7 @@ async function formatOrder(oldFormat, idJumiaOrder, idCompany) {
     platform: "jumia",
     importedFrom: "jumia",
     importedId: oldFormat.id,
-    statusFlow: oldFormat.statusFlow,
+    statusFlow: transformedAndAdjustedData,
     idJumiaOrder,
     reference: oldFormat.code,
     createdAt: utcDateString,

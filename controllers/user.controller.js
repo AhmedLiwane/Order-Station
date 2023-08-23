@@ -25,7 +25,9 @@ const {
 } = require("../functions/formatterUtils.js");
 const { default: axios } = require("axios");
 const { fetchAndEmitOrders } = require("../functions/socketFetchOrders");
-
+const socket = require("socket.io")(5001, {
+  cors: { origin: "*" },
+});
 async function generateRandomCode() {
   var characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   var code = "";
@@ -39,7 +41,7 @@ async function generateRandomCode() {
 
 async function findAndRemoveDuplicateImportedIds() {
   try {
-    const duplicates = await ProductModel.aggregate([
+    const duplicates = await IngredientModel.aggregate([
       {
         $group: {
           _id: "$importedId",
@@ -53,13 +55,13 @@ async function findAndRemoveDuplicateImportedIds() {
         },
       },
     ]);
-    // for (const duplicate of duplicates) {
-    //   const idsToDelete = duplicate.docs.slice(1); // Keep only duplicate IDs excluding the first one
+    for (const duplicate of duplicates) {
+      const idsToDelete = duplicate.docs.slice(1); // Keep only duplicate IDs excluding the first one
 
-    //   await IngredientModel.deleteMany({
-    //     _id: { $in: idsToDelete },
-    //   });
-    // }
+      await IngredientModel.deleteMany({
+        _id: { $in: idsToDelete },
+      });
+    }
     return duplicates;
   } catch (error) {
     return {
@@ -74,25 +76,25 @@ async function findAndRemoveDuplicateImportedIds() {
 
 exports.test = async (req, res) => {
   try {
-    const originalDateString = "2023-08-16T19:56:37+01:00";
-    const dateObject = new Date(originalDateString);
+    // const transformedAndAdjustedData = data.map((item) => {
+    //   const date = new Date(item.date);
+    //   date.setHours(date.getHours() + 1); // Add one hour
+    //   return {
+    //     ...item,
+    //     date: date, // Convert to ISO string
+    //   };
+    // });
 
-    // Convert to UTC before saving
-    const utcDateString = dateObject.toISOString();
-    console.log(dateObject);
-    console.log(utcDateString);
-
-    return res.status(200).send({
+    res.status(200).send({
       message: "Success",
       code: 200,
       success: false,
       date: Date.now(),
-      utcDateString,
     });
   } catch (error) {
     res.status(500).send({
       message:
-        "This error is coming from test endpoint, please report to the sys administrator !",
+        "This error is coming from test endpoint, please report to the sys administrator!",
       code: 500,
       success: false,
       date: Date.now(),
@@ -374,12 +376,18 @@ exports.getOrders = async (req, res) => {
       idCompany: foundCompany.id,
     }).select("-__v -_id -products");
 
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+
     res.status(200).send({
       message: "Fetched orders",
       code: 200,
       success: true,
       date: Date.now(),
-      data: foundOrders,
+      data: foundOrders.slice(startIndex, endIndex),
     });
     const foundJumia = await JumiaModel.findOne({
       id: foundCompany.idJumia,
@@ -390,7 +398,11 @@ exports.getOrders = async (req, res) => {
       const headers = {
         Authorization: "Bearer " + decryptData(foundJumia.token),
       };
-      setInterval(fetchAndEmitOrders(foundCompany.id, headers), 4000);
+      setInterval(async () => {
+        const newOrders = await fetchAndEmitOrders(foundCompany.id, headers);
+
+        socket.emit("new-orders", newOrders);
+      }, 4000); // Emit every 4 seconds
     }
   } catch (error) {
     res.status(500).send({
@@ -5146,6 +5158,82 @@ exports.jumiaLogin = async (req, res) => {
   }
 };
 
+exports.addJumiaAccount = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+
+    const { email, password } = req.body;
+
+    await axios
+      .post("https://vendor-global-api.food.jumia.com.tn/v1/login", {
+        email,
+        password,
+      })
+      .then(async (result) => {
+        if (result.data.token) {
+          const idJumia = uuidv4();
+          let newJumia = new JumiaModel({
+            id: idJumia,
+            idCompany: foundCompany.id,
+            email: encryptData(email),
+            password: encryptData(password),
+            token: encryptData(result.data.token),
+          });
+          foundCompany.idJumia = idJumia;
+          await newJumia.save();
+          await foundCompany.save();
+          return res.status(200).send({
+            message: "Logged in successfully",
+            code: 200,
+            success: false,
+            date: Date.now(),
+          });
+        } else {
+        }
+      })
+      .catch((err) => {
+        return res.status(400).send({
+          message: "Something went wrong with the connection to Jumia",
+          code: 400,
+          success: false,
+          date: Date.now(),
+        });
+      });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from addJumiaAccount endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
 exports.importJumiaOrders = async (req, res) => {
   try {
     const token = req.headers["x-order-token"];
@@ -5950,7 +6038,7 @@ exports.createChoice = async (req, res) => {
         date: Date.now(),
       });
     }
-    const { question, min, max, choices, products } = req.body;
+    const { question, min, max, choices, products, restaurants } = req.body;
     if (!question || !min || !max) {
       return res.status(400).send({
         message: "Missing details",
@@ -5961,6 +6049,33 @@ exports.createChoice = async (req, res) => {
     }
     const idChoice = uuidv4();
     let exist = true;
+
+    if (restaurants && restaurants[0]) {
+      const myPromise = restaurants.map(async (idVendor) => {
+        const foundVendor = await RestaurantModel.findOne({
+          id: idVendor,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+        if (
+          !foundVendor ||
+          !foundCompany.restaurants.includes(foundVendor.id)
+        ) {
+          return (exist = false);
+        }
+      });
+      await Promise.all(myPromise);
+      if (!exist) {
+        return res.status(404).send({
+          message:
+            "A restaurant in the list wasn't found or doesn't belong to your company",
+          code: 404,
+          success: false,
+          date: Date.now(),
+        });
+      }
+    }
+
     if (choices && choices[0]) {
       const myPromise = choices.map(async (ingredient) => {
         const foundIngredient = await IngredientModel.findOne({
@@ -5994,8 +6109,6 @@ exports.createChoice = async (req, res) => {
         if (!foundProduct) {
           return (exist = false);
         }
-        foundProduct.choices.push(idChoice);
-        await foundProduct.save();
       });
       await Promise.all(myPromise);
       if (!exist) {
@@ -6018,17 +6131,463 @@ exports.createChoice = async (req, res) => {
     });
     await newChoice.save();
 
-    return res.status(200).send({
+    res.status(200).send({
       message: "Created new choice",
       code: 200,
       success: true,
       date: Date.now(),
       data: newChoice,
     });
+    if (restaurants && restaurants[0]) {
+      const myPromise = restaurants.map(async (idVendor) => {
+        const foundVendor = await RestaurantModel.findOne({
+          id: idVendor,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+        foundVendor.choices.push(idChoice);
+        await foundVendor.save();
+      });
+      await Promise.all(myPromise);
+    }
+    if (products && products[0]) {
+      const myPromise = products.map(async (product) => {
+        const foundProduct = await ProductModel.findOne({
+          id: product,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+
+        foundProduct.choices.push(idChoice);
+        await foundProduct.save();
+      });
+      await Promise.all(myPromise);
+    }
   } catch (error) {
     res.status(500).send({
       message:
         "This error is coming from createChoice endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
+exports.getChoices = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    let foundChoices = await ChoiceModel.find({
+      idCompany: foundCompany.id,
+      isArchived: false,
+    }).select("-_id -__v");
+    if (foundChoices && foundChoices[0]) {
+      const myPromise = foundChoices.map(async (choice) => {
+        let ingredientsTab = [];
+        const promise1 = choice.choices.map(async (ingredient) => {
+          const foundIngredient = await IngredientModel.findOne({
+            id: ingredient,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          ingredientsTab.push(foundIngredient.name);
+        });
+        await Promise.all(promise1);
+        choice.choices = ingredientsTab;
+        let vendorsTab = [];
+        const promise2 = choice.restaurants.map(async (idVendor) => {
+          const foundVendor = await RestaurantModel.findOne({
+            id: idVendor,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          vendorsTab.push(foundVendor.name);
+        });
+        await Promise.all(promise2);
+        choice.restaurants = vendorsTab;
+        let productsTab = [];
+        const promise3 = choice.products.map(async (product) => {
+          const foundProduct = await ProductModel.findOne({
+            id: product,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          productsTab.push(foundProduct.name);
+        });
+        await Promise.all(promise3);
+        choice.products = productsTab;
+      });
+      await Promise.all(myPromise);
+    }
+    return res.status(200).send({
+      message: "Fetched choices",
+      code: 200,
+      success: true,
+      date: Date.now(),
+      data: foundChoices,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from getChoices endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
+exports.getProductChoices = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const { id } = req.params;
+    const foundProduct = await ProductModel.findOne({
+      id,
+      idCompany: foundCompany.id,
+      isArchived: false,
+    });
+    if (!foundProduct) {
+      return res.status(404).send({
+        message: "Product not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    let foundChoices = await ChoiceModel.find({
+      id: { $in: foundProduct.choices },
+      idCompany: foundCompany.id,
+      isArchived: false,
+    }).select("-_id -__v");
+    if (foundChoices && foundChoices[0]) {
+      const myPromise = foundChoices.map(async (choice) => {
+        let ingredientsTab = [];
+        const promise1 = choice.choices.map(async (ingredient) => {
+          const foundIngredient = await IngredientModel.findOne({
+            id: ingredient,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          ingredientsTab.push(foundIngredient.name);
+        });
+        await Promise.all(promise1);
+        choice.choices = ingredientsTab;
+        let vendorsTab = [];
+        const promise2 = choice.restaurants.map(async (idVendor) => {
+          const foundVendor = await RestaurantModel.findOne({
+            id: idVendor,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          vendorsTab.push(foundVendor.name);
+        });
+        await Promise.all(promise2);
+        choice.restaurants = vendorsTab;
+        let productsTab = [];
+        const promise3 = choice.products.map(async (product) => {
+          const foundProduct = await ProductModel.findOne({
+            id: product,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          productsTab.push(foundProduct.name);
+        });
+        await Promise.all(promise3);
+        choice.products = productsTab;
+      });
+      await Promise.all(myPromise);
+    }
+    return res.status(200).send({
+      message: "Fetched choices",
+      code: 200,
+      success: true,
+      date: Date.now(),
+      data: foundChoices,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from getProductChoices endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
+exports.getVendorChoices = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const { id } = req.params;
+    const foundRestaurant = await RestaurantModel.findOne({
+      id,
+      idCompany: foundCompany.id,
+      isArchived: false,
+    });
+    if (!foundRestaurant) {
+      return res.status(404).send({
+        message: "Vendor not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    let foundChoices = await ChoiceModel.find({
+      id: { $in: foundRestaurant.choices },
+      idCompany: foundCompany.id,
+      isArchived: false,
+    }).select("-_id -__v");
+    if (foundChoices && foundChoices[0]) {
+      const myPromise = foundChoices.map(async (choice) => {
+        let ingredientsTab = [];
+        const promise1 = choice.choices.map(async (ingredient) => {
+          const foundIngredient = await IngredientModel.findOne({
+            id: ingredient,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          ingredientsTab.push(foundIngredient.name);
+        });
+        await Promise.all(promise1);
+        choice.choices = ingredientsTab;
+        let vendorsTab = [];
+        const promise2 = choice.restaurants.map(async (idVendor) => {
+          const foundVendor = await RestaurantModel.findOne({
+            id: idVendor,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          vendorsTab.push(foundVendor.name);
+        });
+        await Promise.all(promise2);
+        choice.restaurants = vendorsTab;
+        let productsTab = [];
+        const promise3 = choice.products.map(async (product) => {
+          const foundProduct = await ProductModel.findOne({
+            id: product,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          productsTab.push(foundProduct.name);
+        });
+        await Promise.all(promise3);
+        choice.products = productsTab;
+      });
+      await Promise.all(myPromise);
+    }
+    return res.status(200).send({
+      message: "Fetched choices",
+      code: 200,
+      success: true,
+      date: Date.now(),
+      data: foundChoices,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from getVendorChoices endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
+exports.editChoice = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const { id } = req.params;
+    const values = req.body;
+    const updateQuery = {};
+
+    // Iterate through each key-value pair in the values object
+    for (const key in values) {
+      const value = values[key];
+
+      // Include the key-value pair in updateQuery if:
+      // 1. The value is not an array, OR
+      // 2. The value is an array and it's not empty
+      if (!Array.isArray(value) || (Array.isArray(value) && value.length > 0)) {
+        updateQuery[key] = value;
+      }
+    }
+    let foundChoice = await ChoiceModel.findOne({
+      id,
+      idCompany: foundCompany.id,
+      isArchived: false,
+    });
+    if (!foundChoice) {
+      return res.status(404).send({
+        message: "Choice not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (values.choices && values.choices[0]) {
+      let exist = true;
+      const myPromise = values.choices.map(async (ingredient) => {
+        const foundIngredient = await IngredientModel.findOne({
+          id: ingredient,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+        if (!foundIngredient) {
+          return (exist = false);
+        }
+      });
+      await Promise.all(myPromise);
+      if (!exist) {
+        return res.status(404).send({
+          message: "An ingredient in the choices list wasn't found",
+          code: 404,
+          success: false,
+          date: Date.now(),
+        });
+      }
+    }
+    if (values.products && values.products[0]) {
+      const myPromise = values.products.map(async (product) => {
+        const foundProduct = await ProductModel.findOne({
+          id: product,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+        if (!foundProduct) {
+          return (exist = false);
+        }
+      });
+      await Promise.all(myPromise);
+      if (!exist) {
+        return res.status(404).send({
+          message: "A product in the list wasn't found",
+          code: 404,
+          success: false,
+          date: Date.now(),
+        });
+      }
+    }
+    await foundChoice.updateOne(updateQuery);
+    res.status(200).send({
+      message: "Updated choice",
+      code: 200,
+      success: true,
+      date: Date.now(),
+    });
+    if (values.products && values.products[0]) {
+      const myPromise = values.products.map(async (product) => {
+        const foundProduct = await ProductModel.findOne({
+          id: product,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+        if (!foundProduct.choices.includes(foundChoice.id)) {
+          foundProduct.choices.push(foundChoice.id);
+          await foundProduct.save();
+        }
+      });
+      await Promise.all(myPromise);
+    }
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from editChoice endpoint, please report to the sys administrator !",
       code: 500,
       success: false,
       date: Date.now(),

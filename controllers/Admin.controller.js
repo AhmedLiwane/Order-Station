@@ -357,7 +357,7 @@ exports.createCompany = async (req, res) => {
         date: Date.now(),
       });
     }
-    const { name, address, email, image, type, matricule, password } = req.body;
+    const { name, address, email, image, type, matricule } = req.body;
 
     const foundCompany = await CompanyModel.findOne({
       email,
@@ -370,7 +370,6 @@ exports.createCompany = async (req, res) => {
         date: Date.now(),
       });
     }
-    const authPassword = await bcrypt.hash(password, 10);
 
     let newCompany = new CompanyModel({
       id: uuidv4(),
@@ -380,7 +379,6 @@ exports.createCompany = async (req, res) => {
       image,
       type,
       matricule,
-      password: authPassword,
     });
     await newCompany.save();
     res.status(200).send({

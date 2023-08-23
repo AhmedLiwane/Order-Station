@@ -68,8 +68,10 @@ const {
   importJumiaSupplements,
   createChoice,
   getChoices,
-  getChoice,
   editChoice,
+  addJumiaAccount,
+  getProductChoices,
+  getVendorChoices,
 } = require("../controllers/User.controller");
 const { isUser } = require("../middlewares/User/isUser");
 
@@ -151,7 +153,8 @@ User.put("/restoreCoupon/:id", use(isUser), use(restoreCoupon));
 /* CRUD Coupons */
 User.post("/createChoice", use(isUser), use(createChoice));
 User.get("/getChoices", use(isUser), use(getChoices));
-User.get("/getChoice/:id", use(isUser), use(getChoice));
+User.get("/getProductChoices/:id", use(isUser), use(getProductChoices));
+User.get("/getVendorChoices/:id", use(isUser), use(getVendorChoices));
 User.put("/editChoice/:id", use(isUser), use(editChoice));
 
 /* CRUD Orders */
@@ -159,6 +162,7 @@ User.get("/getOrders", use(isUser), use(getOrders));
 User.get("/getOrderDetails/:id", use(isUser), use(getOrderDetails));
 
 /* Jumia */
+User.post("/addJumiaAccount", use(isUser), use(addJumiaAccount));
 User.post("/jumiaLogin", use(isUser), use(jumiaLogin));
 User.post("/importJumiaOrders", use(isUser), use(importJumiaOrders));
 User.post("/importJumiaVendors", use(isUser), use(importJumiaVendors));

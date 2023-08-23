@@ -7,6 +7,7 @@ const ProductModel = require("../models/Restaurant/Product");
 const CategoryModel = require("../models/Restaurant/Category");
 const TableModel = require("../models/Restaurant/Table");
 const CouponModel = require("../models/Restaurant/Coupon");
+const ChoiceModel = require("../models/Restaurant/Choice");
 const { v4: uuidv4 } = require("uuid");
 
 exports.getCategories = async (req, res) => {
@@ -180,11 +181,11 @@ exports.createOrder = async (req, res) => {
       waiter: foundWaiter.id,
       table: foundTable.id,
       platform: "onPlace",
-      status: "Pending",
       products,
       usedCoupon,
       productsTotalPrice: 0,
     });
+    newOrder.statusFlow.push({ code: "new", date: Date.now() });
     // Start calculating products price
     let productsTotal = 0;
     for (let product of products) {
@@ -673,35 +674,34 @@ exports.getProductChoices = async (req, res) => {
         date: Date.now(),
       });
     }
-    let choicesTab = [];
-    const myPromise = foundProduct.choices.map(async (choice) => {
-      let object = {
-        question: choice.question,
-        ingredients: [],
-      };
-      const insidePromise = choice.ingredients.map(async (ingredient) => {
-        const foundIngredient = await IngredientModel.findOne({
-          id: ingredient,
-          isArchived: false,
-          idCompany: foundCompany.id,
-          isSupplement: false,
+    let foundChoices = await ChoiceModel.find({
+      id: { $in: foundProduct.choices },
+      idCompany: foundCompany.id,
+      isArchived: false,
+    }).select("-_id -__v -products -restaurants");
+    if (foundChoices && foundChoices[0]) {
+      const myPromise = foundChoices.map(async (choice) => {
+        let ingredientsTab = [];
+        const promise1 = choice.choices.map(async (ingredient) => {
+          const foundIngredient = await IngredientModel.findOne({
+            id: ingredient,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          ingredientsTab.push(foundIngredient.name);
         });
-        object.ingredients.push({
-          id: foundIngredient.id,
-          name: foundIngredient.name,
-        });
+        await Promise.all(promise1);
+        choice.choices = ingredientsTab;
       });
-      await Promise.all(insidePromise);
-      choicesTab.push(object);
-    });
-    await Promise.all(myPromise);
+      await Promise.all(myPromise);
+    }
 
     return res.status(200).send({
       message: "Fetched choices",
       code: 200,
       success: true,
       date: Date.now(),
-      data: choicesTab,
+      data: foundChoices,
     });
   } catch (error) {
     res.status(500).send({
