@@ -5075,6 +5075,68 @@ exports.getOrderDetails = async (req, res) => {
   }
 };
 
+exports.updateOrderStatus = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const { id, status } = req.params;
+    let foundOrder = await OrderModel.findOne({
+      id,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    }).select("-_id -__v");
+
+    if (!foundOrder) {
+      return res.status(404).send({
+        message: "Order not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    foundOrder.statusFlow.push({ code: status, date: Date.now() });
+    await foundOrder.save();
+    res.status(200).send({
+      message: "Updated order status",
+      code: 200,
+      success: true,
+      date: Date.now(),
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({
+      message:
+        "This error is coming from updateOrderStatus endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
 exports.jumiaLogin = async (req, res) => {
   try {
     const token = req.headers["x-order-token"];

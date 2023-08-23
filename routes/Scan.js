@@ -9,18 +9,22 @@ const {
   getVendors,
   getProductChoices,
   getProductSupplements,
+  editOrder,
 } = require("../controllers/Scan.controller");
 
 const use = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
-/* Category*/
+/* Category */
 Scan.get("/getCategories/:idCompany/:idVendor", use(getCategories));
 
 /* Order */
 Scan.post("/createOrder/:idCompany", use(createOrder));
 Scan.get("/getOrderDetails/:idCompany/:idOrder", use(getOrderDetails));
+Scan.get("/editOrder/:idCompany/:idOrder", use(editOrder));
+
+/* Table */
 Scan.get("/getTableStatus/:idCompany/:idTable", use(getTableStatus));
 
 /* Vendor*/

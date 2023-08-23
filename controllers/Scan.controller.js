@@ -190,7 +190,7 @@ exports.createOrder = async (req, res) => {
     let productsTotal = 0;
     for (let product of products) {
       const foundProduct = await ProductModel.findOne({
-        id: product.productID,
+        id: product.product,
         idCompany: foundCompany.id,
         isArchived: false,
       });
@@ -366,6 +366,291 @@ exports.createOrder = async (req, res) => {
   }
 };
 
+exports.editOrder = async (req, res) => {
+  try {
+    const { idCompany, idOrder } = req.params;
+
+    if (!idCompany) {
+      return res.status(400).send({
+        message: "Missing details",
+        code: 400,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const foundCompany = await CompanyModel.findOne({
+      id: idCompany,
+      isArchived: false,
+    });
+
+    if (!foundCompany) {
+      return res.status(404).send({
+        message: "Company not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    let foundOrder = await OrderModel.findOne({
+      id: idOrder,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    }).select("-_id -__v");
+
+    if (!foundOrder) {
+      return res.status(404).send({
+        message: "Order not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    let foundRestaurant = await OrderModel.findOne({
+      id: foundOrder.restaurant,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    }).select("-_id -__v");
+
+    if (!foundRestaurant) {
+      return res.status(404).send({
+        message: "Vendor not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const values = req.body;
+
+    // Check viablity of the table and check if it's available
+    // Later when we add online payment, open/close table automatically
+    let foundTable;
+    if (values.table) {
+      if (values.isPickup) {
+        foundTable = await TableModel.findOne({
+          id: values.table,
+          restaurant,
+          isArchived: false,
+          idCompany: foundCompany.id,
+        });
+      } else if (!values.isPickup) {
+        foundTable = await TableModel.findOne({
+          id: values.table,
+          restaurant,
+          isAvailable: true,
+          isArchived: false,
+          idCompany: foundCompany.id,
+        });
+      }
+
+      if (!foundTable) {
+        return res.status(404).send({
+          message: "Table not found",
+          code: 404,
+          success: false,
+          date: Date.now(),
+        });
+      }
+    }
+    if (values.waiter) {
+      // Check viablity of the waiter
+      const foundWaiter = await UserModel.findOne({
+        id: values.waiter,
+        role: "waiter",
+        isArchived: false,
+        idCompany: foundCompany.id,
+      });
+      if (!foundWaiter) {
+        return res.status(404).send({
+          message: "Waiter not found",
+          code: 404,
+          success: false,
+          date: Date.now(),
+        });
+      }
+    }
+    if (values.products && values.products[0]) {
+      // Start calculating products price
+      let productsTotal = 0;
+      for (let product of values.products) {
+        const foundProduct = await ProductModel.findOne({
+          id: product.product,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+        if (
+          !foundProduct ||
+          !foundProduct.restaurants.includes(foundRestaurant.id)
+        ) {
+          return res.status(404).send({
+            message: "Product not found or doesn't belong to this vendor",
+            code: 404,
+            success: false,
+            date: Date.now(),
+          });
+        }
+        productsTotal += foundProduct.price * product.quantity;
+        // Test choices viability
+        if (product.choices && product.choices[0]) {
+          for (let ingredient of product.choices) {
+            const foundIngredient = await IngredientModel.findOne({
+              id: ingredient,
+              isSupplement: false,
+              idCompany: foundCompany.id,
+              isArchived: false,
+            });
+            if (!foundIngredient) {
+              return res.status(404).send({
+                message:
+                  "Ingredient not found or doesn't belong to this vendor",
+                code: 404,
+                success: false,
+                date: Date.now(),
+              });
+            }
+          }
+        }
+        // Test supplements viability and add to products total price
+        if (product.extra && product.extra[0]) {
+          const extras = await IngredientModel.find({
+            id: { $in: product.extra },
+            isSupplement: true,
+            idCompany: foundCompany.id,
+            isArchived: false,
+          });
+          if (extras && extras[0]) {
+            for (let extra of extras) {
+              productsTotal += extra.price;
+            }
+          }
+        }
+      }
+      foundOrder.productsTotalPrice = productsTotal;
+    }
+
+    // Check if coupon exists, dicount the amount
+    if (values.usedCoupon !== "") {
+      const foundCoupon = await CouponModel.findOne({
+        code: values.usedCoupon,
+        restaurant: foundRestaurant.id,
+        idCompany: foundCompany.id,
+        isArchived: false,
+      });
+      if (!foundCoupon || !foundRestaurant.coupons.includes(foundCoupon.id)) {
+        return res.status(404).send({
+          message: "Coupon not found",
+          code: 404,
+          success: false,
+          date: Date.now(),
+        });
+      } else if (foundCoupon.multiUse) {
+        if (!foundCoupon.isActive) {
+          return res.status(406).send({
+            message: "Coupon is not active",
+            code: 406,
+            success: false,
+            date: Date.now(),
+          });
+        } else if (foundCoupon.quantity === 0) {
+          return res.status(406).send({
+            message: "Coupon ran out",
+            code: 406,
+            success: false,
+            date: Date.now(),
+          });
+        } else if (foundCoupon.quantity - 1 === 0) {
+          foundCoupon.quantity -= 1;
+          foundCoupon.isActive = false;
+          return res.status(406).send({
+            message: "Coupon ran out",
+            code: 406,
+            success: false,
+            date: Date.now(),
+          });
+        } else {
+          foundCoupon.quantity -= 1;
+        }
+      } else if (foundCoupon.isUsed) {
+        return res.status(406).send({
+          message: "Coupon already used",
+          code: 406,
+          success: false,
+          date: Date.now(),
+        });
+      } else if (
+        foundCoupon.startDate &&
+        new Date(foundCoupon.startDate) > new Date()
+      ) {
+        return res.status(406).send({
+          message: "Coupon can't be used yet",
+          code: 406,
+          success: false,
+          date: Date.now(),
+        });
+      } else if (
+        foundCoupon.endDate &&
+        new Date(foundCoupon.endDate) < new Date()
+      ) {
+        return res.status(406).send({
+          message: "Coupon expired",
+          code: 406,
+          success: false,
+          date: Date.now(),
+        });
+      } else {
+        foundCoupon.isUsed = true;
+      }
+      let discountedAmount;
+
+      if (foundCoupon.percentage) {
+        discountedAmount =
+          foundOrder.productsTotalPrice * (foundCoupon.amount / 100);
+
+        foundOrder.totalPrice +=
+          foundOrder.productsTotalPrice - discountedAmount;
+
+        foundOrder.discountedAmount = discountedAmount;
+      } else {
+        discountedAmount = foundCoupon.amount;
+        foundOrder.totalPrice +=
+          foundOrder.productsTotalPrice - discountedAmount;
+        foundOrder.discountedAmount = discountedAmount;
+      }
+      await foundCoupon.save();
+    }
+    // Calculate TVA
+    // foundOrder.totalPrice +=
+    //   foundOrder.productsTotalPrice +
+    //   (foundOrder.productsTotalPrice * foundOrder.tva) / 100;
+
+    // Check if there are delivery fees
+    if (foundOrder.deliveryFee > 0) {
+      foundOrder.totalPrice += foundOrder.deliveryFee;
+    }
+
+    await foundOrder.save();
+    res.status(200).send({
+      message: "Edited order",
+      code: 200,
+      success: true,
+      date: Date.now(),
+    });
+    // Change table status if not pick up
+    if (!isPickup) {
+      foundTable.isAvailable = false;
+      foundTable.order = idOrder;
+      foundTable.save();
+    }
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from editOrder endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
 exports.getOrderDetails = async (req, res) => {
   try {
     const { idCompany, idOrder } = req.params;
@@ -425,11 +710,11 @@ exports.getOrderDetails = async (req, res) => {
     foundOrder.restaurant = foundRestaurant.name;
     const myPromise = foundOrder.products.map(async (object) => {
       const foundProduct = await ProductModel.findOne({
-        id: object.productID,
+        id: object.product,
         isArchived: false,
         idCompany: foundCompany.id,
       });
-      object.productID = foundProduct.name;
+      object.product = foundProduct.name;
       const foundIngredients = await IngredientModel.find({
         id: { $in: object.choices },
         isArchived: false,

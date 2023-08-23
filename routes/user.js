@@ -72,6 +72,7 @@ const {
   addJumiaAccount,
   getProductChoices,
   getVendorChoices,
+  updateOrderStatus,
 } = require("../controllers/User.controller");
 const { isUser } = require("../middlewares/User/isUser");
 
@@ -160,6 +161,7 @@ User.put("/editChoice/:id", use(isUser), use(editChoice));
 /* CRUD Orders */
 User.get("/getOrders", use(isUser), use(getOrders));
 User.get("/getOrderDetails/:id", use(isUser), use(getOrderDetails));
+User.get("/updateOrderStatus/:id/:status", use(isUser), use(updateOrderStatus));
 
 /* Jumia */
 User.post("/addJumiaAccount", use(isUser), use(addJumiaAccount));
