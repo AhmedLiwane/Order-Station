@@ -5388,7 +5388,6 @@ exports.importJumiaOrders = async (req, res) => {
                 await Promise.all(productsPromise);
                 newOrder.products = products;
                 foundCompany.orders.push(newOrder.id);
-                await foundCompany.save();
                 await foundVendor.save();
                 await newOrder.save();
                 await newJumiaOrder.save();
@@ -5396,6 +5395,7 @@ exports.importJumiaOrders = async (req, res) => {
             });
         });
         await Promise.all(myPromise);
+        await foundCompany.save();
         res.status(200).send({
           message: "Imported orders successfully",
           code: 200,
