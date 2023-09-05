@@ -54,6 +54,11 @@ async function formatVendor(oldFormat, idCompany) {
     name: oldFormat.name,
     importedId: oldFormat.id,
     importedFrom: "jumia",
+    visiblity: {
+      glovo: false,
+      jumia: true,
+      onPlace: false,
+    },
   };
 
   return newFormat;

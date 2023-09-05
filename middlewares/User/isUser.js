@@ -20,7 +20,7 @@ exports.isUser = async (req, res, next) => {
           date: Date.now(),
         });
       }
-      if (req.route.path === "/auth") {
+      if (req.route.path === "/isAuth") {
         res.status(200).send({
           message: "Authorized",
           code: 200,

@@ -768,6 +768,124 @@ exports.getVendorProducts = async (req, res) => {
   }
 };
 
+exports.getVendorMenu = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const { id } = req.params;
+    const foundRestaurant = await RestaurantModel.findOne({
+      id,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    });
+    if (
+      !foundRestaurant ||
+      !foundCompany.restaurants.includes(foundRestaurant.id)
+    ) {
+      return res.status(404).send({
+        message: "Vendor not found or doesn't belong to your company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const foundCategories = await CategoryModel.find({
+      id: { $in: foundRestaurant.categories },
+      isArchived: false,
+      idCompany: foundCompany.id,
+    }).select("-_id -__v");
+
+    const foundProducts = await ProductModel.find({
+      id: { $in: foundRestaurant.products },
+      isArchived: false,
+      idCompany: foundCompany.id,
+    }).select("-_id -__v");
+    if (foundProducts && foundProducts[0]) {
+      async function fetchMenu(restaurant, categories, products) {
+        const menu = restaurant.categories.map((categoryId) => {
+          const category = categories.find((c) => c.id === categoryId);
+          if (!category) {
+            return null; // Category not found
+          }
+
+          const categoryProducts = restaurant.products
+            .filter((productId) => {
+              const product = products.find(
+                (p) => p.id === productId && p.price !== 0
+              );
+              return product && product.category === categoryId;
+            })
+            .map((productId) => {
+              const product = products.find((p) => p.id === productId);
+              return {
+                name: product.name,
+                price: product.price,
+              };
+            });
+
+          return {
+            category: category.name,
+            products: categoryProducts,
+          };
+        });
+
+        return menu.filter((item) => item !== null); // Remove null entries
+      }
+      const menu = await fetchMenu(
+        foundRestaurant,
+        foundCategories,
+        foundProducts
+      );
+      return res.status(200).send({
+        message: "Fetched products",
+        code: 200,
+        success: true,
+        date: Date.now(),
+        data: menu,
+      });
+    } else {
+      res.status(200).send({
+        message: "No products",
+        code: 200,
+        success: true,
+        date: Date.now(),
+        data: [],
+      });
+    }
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from getVendorMenu endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
 exports.editVendor = async (req, res) => {
   try {
     const token = req.headers["x-order-token"];

@@ -73,6 +73,7 @@ const {
   getProductChoices,
   getVendorChoices,
   updateOrderStatus,
+  getVendorMenu,
 } = require("../controllers/User.controller");
 const { isUser } = require("../middlewares/User/isUser");
 
@@ -82,6 +83,7 @@ const use = (fn) => (req, res, next) => {
 /* User Auth */
 User.post("/login", use(login));
 User.post("/test", use(test));
+User.post("/isAuth", use(isUser));
 User.put("/editProfile", use(isUser), use(editProfile));
 User.get("/viewProfile", use(isUser), use(viewProfile));
 User.post("/changePassword", use(isUser), use(changePassword));
@@ -94,6 +96,7 @@ User.get("/getVendorCategories/:id", use(isUser), use(getVendorCategories));
 User.get("/getVendorIngredients/:id", use(isUser), use(getVendorIngredients));
 User.get("/getVendorSupplements/:id", use(isUser), use(getVendorSupplements));
 User.get("/getVendorProducts/:id", use(isUser), use(getVendorProducts));
+User.get("/getVendorMenu/:id", use(isUser), use(getVendorMenu));
 User.put("/editVendor/:id", use(isUser), use(editVendor));
 User.put("/archiveVendor/:id", use(isUser), use(archiveVendor));
 User.put("/restoreVendor/:id", use(isUser), use(restoreVendor));
