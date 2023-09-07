@@ -594,6 +594,11 @@ exports.createVendor = async (req, res) => {
     values.id = idRestaurant;
     let newRestaurant = new RestaurantModel(values);
     foundCompany.restaurants.push(idRestaurant);
+    newRestaurant.visibility = {
+      glovo: false,
+      jumia: false,
+      onPlace: false,
+    };
     await newRestaurant.save();
     await foundCompany.save();
     res.status(200).send({
@@ -1867,6 +1872,7 @@ exports.archiveIngredient = async (req, res) => {
       date: Date.now(),
     });
   } catch (error) {
+    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from archiveIngredient endpoint, please report to the sys administrator !",
@@ -1999,6 +2005,148 @@ exports.editIngredient = async (req, res) => {
     res.status(500).send({
       message:
         "This error is coming from editIngredient endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
+exports.getIngredient = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const { id } = req.params;
+    const foundIngredient = await IngredientModel.findOne({
+      id,
+      isSupplement: false,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    });
+    if (!foundIngredient) {
+      return res.status(404).send({
+        message: "Ingredient not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+
+    const foundVendors = await RestaurantModel.find({
+      id: { $in: foundIngredient.restaurants },
+      idCompany: foundCompany.id,
+      isArchived: false,
+    }).select("name id -_id");
+    const info = foundVendors.map((vendor) => ({
+      value: vendor.id,
+      label: vendor.name,
+    }));
+    foundIngredient.restaurants = info;
+    res.status(200).send({
+      message: "Fetched ingredient",
+      code: 200,
+      success: true,
+      date: Date.now(),
+      data: foundIngredient,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from getIngredient endpoint, please report to the sys administrator !",
+      code: 500,
+      success: false,
+      date: Date.now(),
+    });
+  }
+};
+
+exports.getSupplement = async (req, res) => {
+  try {
+    const token = req.headers["x-order-token"];
+    const user = jwt.verify(token, process.env.SECRET_KEY);
+
+    const foundUser = await UserModel.findOne({
+      id: user.id,
+    });
+    const foundCompany = await CompanyModel.findOne({
+      id: foundUser.idCompany,
+    });
+    if (!foundUser) {
+      return res.status(404).send({
+        message: "User not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    if (!foundCompany || !foundCompany.users.includes(foundUser.id)) {
+      return res.status(404).send({
+        message: "You don't belong to a company",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+    const { id } = req.params;
+    const foundSupplement = await IngredientModel.findOne({
+      id,
+      isSupplement: true,
+      isArchived: false,
+      idCompany: foundCompany.id,
+    });
+    if (!foundSupplement) {
+      return res.status(404).send({
+        message: "Supplement not found",
+        code: 404,
+        success: false,
+        date: Date.now(),
+      });
+    }
+
+    const foundVendors = await RestaurantModel.find({
+      id: { $in: foundSupplement.restaurants },
+      idCompany: foundCompany.id,
+      isArchived: false,
+    }).select("name id -_id");
+    const info = foundVendors.map((vendor) => ({
+      value: vendor.id,
+      label: vendor.name,
+    }));
+    foundSupplement.restaurants = info;
+    res.status(200).send({
+      message: "Fetched supplement",
+      code: 200,
+      success: true,
+      date: Date.now(),
+      data: foundSupplement,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        "This error is coming from getSupplement endpoint, please report to the sys administrator !",
       code: 500,
       success: false,
       date: Date.now(),

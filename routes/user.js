@@ -74,6 +74,8 @@ const {
   getVendorChoices,
   updateOrderStatus,
   getVendorMenu,
+  getSupplement,
+  getIngredient,
 } = require("../controllers/User.controller");
 const { isUser } = require("../middlewares/User/isUser");
 
@@ -112,12 +114,16 @@ User.put("/restoreCategory/:id", use(isUser), use(restoreCategory));
 /* CRUD Ingredients*/
 User.post("/addIngredient", use(isUser), use(addIngredient));
 User.get("/getIngredients", use(isUser), use(getIngredients));
-User.get("/getSupplements", use(isUser), use(getSupplements));
 User.get("/getSuitableProducts/:id", use(isUser), use(getSuitableProducts));
+User.get("/getIngredient/:id", use(isUser), use(getIngredient));
 User.put("/editIngredient/:id", use(isUser), use(editIngredient));
-User.put("/editSupplement/:id", use(isUser), use(editSupplement));
 User.put("/archiveIngredient/:id", use(isUser), use(archiveIngredient));
 User.put("/restoreIngredient/:id", use(isUser), use(restoreIngredient));
+
+/* CRUD Supplements*/
+User.get("/getSupplements", use(isUser), use(getSupplements));
+User.get("/getSupplement/:id", use(isUser), use(getSupplement));
+User.put("/editSupplement/:id", use(isUser), use(editSupplement));
 
 /* CRUD Products*/
 User.post("/addProduct", use(isUser), use(addProduct));
@@ -154,7 +160,7 @@ User.put("/editCoupon/:id", use(isUser), use(editCoupon));
 User.put("/archiveCoupon/:id", use(isUser), use(archiveCoupon));
 User.put("/restoreCoupon/:id", use(isUser), use(restoreCoupon));
 
-/* CRUD Coupons */
+/* CRUD Choices */
 User.post("/createChoice", use(isUser), use(createChoice));
 User.get("/getChoices", use(isUser), use(getChoices));
 User.get("/getProductChoices/:id", use(isUser), use(getProductChoices));

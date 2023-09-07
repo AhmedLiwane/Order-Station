@@ -20,6 +20,7 @@ const Product = new Schema({
   importedId: { type: String, default: "" },
   image: { type: String, default: "" },
   priority: { type: Number, default: 1 },
+  sales: { type: Number, default: 0 },
   restaurants: { type: Array, default: [] },
   visibility: {
     glovo: { type: Boolean },
