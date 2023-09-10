@@ -4185,15 +4185,7 @@ exports.addWaiter = async (req, res) => {
       restaurant,
     } = req.body;
 
-    if (
-      !email ||
-      !cin ||
-      !password ||
-      !name ||
-      !surname ||
-      !restaurant ||
-      restaurant.length === 0
-    ) {
+    if (!email || !cin || !password || !name || !surname || !restaurant) {
       return res.status(404).send({
         message: "Missing informations.",
         code: 404,
@@ -4239,6 +4231,7 @@ exports.addWaiter = async (req, res) => {
     });
 
     if (foundCin) {
+      console.log(foundCin.cin);
       return res.status(401).send({
         message: "User with the same cin already exists",
         code: 401,
@@ -4273,6 +4266,7 @@ exports.addWaiter = async (req, res) => {
       data: newUser,
     });
   } catch (error) {
+    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from addWaiter endpoint, please report to the sys administrator !",
@@ -4310,13 +4304,26 @@ exports.getWaiters = async (req, res) => {
         date: Date.now(),
       });
     }
-    const foundWaiters = await UserModel.find({
+    let foundWaiters = await UserModel.find({
       idCompany: foundCompany.id,
       role: "waiter",
       isArchived: false,
     }).select(
-      "id name surname email cin birthDate role isActive phone photo createdAt idCompany"
+      "id name surname email cin birthDate role isActive phone photo createdAt idCompany restaurant"
     );
+    const myPromise = foundWaiters.map(async (waiter) => {
+      if (waiter.restaurant !== "") {
+        const foundRestaurant = await RestaurantModel.findOne({
+          id: waiter.restaurant,
+          isArchived: false,
+          idCompany: foundCompany.id,
+        });
+        if (foundRestaurant && foundRestaurant.waiters.includes(waiter.id)) {
+          waiter.restaurant = foundRestaurant.name;
+        }
+      }
+    });
+    await Promise.all(myPromise);
     return res.status(200).send({
       message: "Fetched waiters",
       code: 200,
@@ -4325,6 +4332,7 @@ exports.getWaiters = async (req, res) => {
       data: foundWaiters,
     });
   } catch (error) {
+    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from getWaiters endpoint, please report to the sys administrator !",

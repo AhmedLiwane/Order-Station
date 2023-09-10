@@ -30,6 +30,7 @@ const User = new Schema({
     ccv: { type: String, default: "" },
   },
   walletDetails: { type: Object },
+  restaurant: { type: String, default: "" },
 });
 
 const UserModel = mongoose.model("User", User);
