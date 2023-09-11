@@ -18,6 +18,7 @@ const Order = new Schema({
   leftToPayPrice: { type: Number },
   paymentMethod: { type: String, default: "" },
   products: { type: Array, default: [] },
+  printed: { type: Boolean, default: false },
   waiter: { type: String, default: "" },
   table: { type: String, default: "" },
   isPickup: { type: Boolean, default: false },

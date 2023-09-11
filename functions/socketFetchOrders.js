@@ -5,6 +5,7 @@ const ProductModel = require("../models/Restaurant/Product");
 const IngredientModel = require("../models/Restaurant/Ingredient");
 const { formatOrder } = require("./formatterUtils");
 const axios = require("axios");
+const { v4: uuidv4 } = require("uuid");
 
 // This array will hold the fetched orders to avoid duplicates
 let fetchedOrders = [];

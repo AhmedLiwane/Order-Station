@@ -374,7 +374,23 @@ exports.getOrders = async (req, res) => {
     const foundOrders = await OrderModel.find({
       id: { $in: foundCompany.orders },
       idCompany: foundCompany.id,
-    }).select("-__v -_id -products");
+    })
+      .select("-__v -_id -products")
+      .sort({ _id: -1 });
+
+    const myPromise = foundOrders.map(async (order) => {
+      if (order.restaurant !== "") {
+        const foundRestaurant = await RestaurantModel.findOne({
+          id: order.restaurant,
+          isArchived: false,
+          idCompany: foundCompany.id,
+        });
+        if (foundRestaurant && foundRestaurant.orders.includes(order.id)) {
+          order.restaurant = foundRestaurant.name;
+        }
+      }
+    });
+    await Promise.all(myPromise);
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 100;
@@ -1041,7 +1057,9 @@ exports.getVendors = async (req, res) => {
       id: { $in: foundCompany.restaurants },
       idCompany: foundCompany.id,
       isArchived: false,
-    }).select("-__v -_id -transactions -orders -tables -coupons -ingredients");
+    })
+      .select("-__v -_id -transactions -orders -tables -coupons -ingredients")
+      .sort({ _id: -1 });
     if (foundRestaurants && foundRestaurants[0]) {
       res.status(200).send({
         message: "Fetched vendors",
@@ -1335,15 +1353,7 @@ exports.addIngredient = async (req, res) => {
         isSupplement: true,
       };
     } else {
-      if (
-        !req.body.name ||
-        !req.body.quantity ||
-        !req.body.unit ||
-        !req.body.purchasedPrice ||
-        !req.body.priority ||
-        !req.body.restaurants ||
-        req.body.restaurants.length === 0
-      ) {
+      if (!req.body.name || !req.body.unit || !req.body.purchasedPrice) {
         return res.status(400).send({
           message: "Missing details",
           code: 400,
@@ -1438,17 +1448,18 @@ exports.addIngredient = async (req, res) => {
       data: newIngredient,
     });
     let Promise1, Promise2;
+    if (req.body.restaurants && req.body.restaurants[0]) {
+      Promise1 = req.body.restaurants.map(async (idVendor) => {
+        const foundVendor = await RestaurantModel.findOne({
+          id: idVendor,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
 
-    Promise1 = req.body.restaurants.map(async (idVendor) => {
-      const foundVendor = await RestaurantModel.findOne({
-        id: idVendor,
-        idCompany: foundCompany.id,
-        isArchived: false,
+        foundVendor.ingredients.push(idIngredient);
+        await foundVendor.save();
       });
-
-      foundVendor.ingredients.push(idIngredient);
-      await foundVendor.save();
-    });
+    }
     if (req.body.products && req.body.products[0]) {
       Promise2 = req.body.products.map(async (idProduct) => {
         const foundProduct = await ProductModel.findOne({
@@ -1464,8 +1475,9 @@ exports.addIngredient = async (req, res) => {
       });
     }
 
-    await Promise.all(Promise1, Promise2);
+    await Promise.all(Promise2);
   } catch (error) {
+    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from addIngredient endpoint, please report to the sys administrator !",
@@ -1508,7 +1520,9 @@ exports.getIngredients = async (req, res) => {
       idCompany: foundCompany.id,
       isArchived: false,
       isSupplement: false,
-    }).select("-__v -_id ");
+    })
+      .select("-__v -_id ")
+      .sort({ _id: -1 });
     if (foundIngredients && foundIngredients[0]) {
       res.status(200).send({
         message: "Fetched ingredients",
@@ -1652,7 +1666,9 @@ exports.getSupplements = async (req, res) => {
       idCompany: foundCompany.id,
       isArchived: false,
       isSupplement: true,
-    }).select("-__v -_id ");
+    })
+      .select("-__v -_id ")
+      .sort({ _id: -1 });
     if (foundSupplements && foundSupplements[0]) {
       res.status(200).send({
         message: "Fetched supplements",
@@ -2651,7 +2667,9 @@ exports.getProducts = async (req, res) => {
     let foundProducts = await ProductModel.find({
       idCompany: foundCompany.id,
       isArchived: false,
-    }).select("-__v -_id ");
+    })
+      .select("-__v -_id ")
+      .sort({ _id: -1 });
     if (foundProducts && foundProducts[0]) {
       res.status(200).send({
         message: "Fetched products",
@@ -2857,133 +2875,133 @@ exports.editProduct = async (req, res) => {
         date: Date.now(),
       });
     }
-    if (values.restaurants && values.restaurants[0]) {
-      if (foundCompany.type === "monobrand" && values.restaurants.length > 1) {
-        return res.status(401).send({
-          message:
-            "Your company is Monobrand, you can't assing to more than 1 restaurant",
-          code: 401,
-          success: false,
-          date: Date.now(),
-        });
-      }
+    // if (values.restaurants && values.restaurants[0]) {
+    //   if (foundCompany.type === "monobrand" && values.restaurants.length > 1) {
+    //     return res.status(401).send({
+    //       message:
+    //         "Your company is Monobrand, you can't assing to more than 1 restaurant",
+    //       code: 401,
+    //       success: false,
+    //       date: Date.now(),
+    //     });
+    //   }
 
-      let exist = true;
-      const myPromise = values.restaurants.map(async (idVendor) => {
-        const foundVendor = await RestaurantModel.findOne({
-          id: idVendor,
-          idCompany: foundCompany.id,
-          isArchived: false,
-        });
-        if (
-          !foundVendor ||
-          !foundCompany.restaurants.includes(foundVendor.id)
-        ) {
-          return (exist = false);
-        }
-      });
-      await Promise.all(myPromise);
-      if (!exist) {
-        return res.status(404).send({
-          message:
-            "A restaurant in the list wasn't found or doesn't belong to your company",
-          code: 404,
-          success: false,
-          date: Date.now(),
-        });
-      }
-    }
-    if (values.category) {
-      const foundCategory = await CategoryModel.findOne({
-        id: values.category,
-        isArchived: false,
-        idCompany: foundCompany.id,
-      });
-      if (!foundCategory) {
-        return res.status(404).send({
-          message: "Category not found",
-          code: 404,
-          success: false,
-          date: Date.now(),
-        });
-      }
-    }
-    if (values.supplements && values.supplements[0]) {
-      let exist = true;
-      const myPromise = values.supplements.map(async (supplement) => {
-        const foundSupplement = await IngredientModel.findOne({
-          id: supplement,
-          isSupplement: true,
-          idCompany: foundCompany.id,
-          isArchived: false,
-        });
-        if (!foundSupplement) {
-          return (exist = false);
-        }
-      });
-      await Promise.all(myPromise);
-      if (!exist) {
-        return res.status(404).send({
-          message:
-            "A supplement in the list wasn't found or doesn't belong to your company",
-          code: 404,
-          success: false,
-          date: Date.now(),
-        });
-      }
-    }
-    if (values.defaultIngredients && values.defaultIngredients[0]) {
-      let exist = true;
-      let foodCost = 0;
-      const myPromise = values.defaultIngredients.map(async (ingredient) => {
-        const foundIngredient = await IngredientModel.findOne({
-          id: ingredient.ingredient,
-          isSupplement: false,
-          idCompany: foundCompany.id,
-          isArchived: false,
-        });
-        if (!foundIngredient) {
-          return (exist = false);
-        }
-        foodCost += foundIngredient.purchasedPrice * ingredient.quantity;
-      });
-      await Promise.all(myPromise);
-      if (!exist) {
-        return res.status(404).send({
-          message:
-            "An ingredient in the list wasn't found or doesn't belong to your company",
-          code: 404,
-          success: false,
-          date: Date.now(),
-        });
-      }
-      values.foodCost = foodCost;
-    }
-    if (values.choices && values.choices[0]) {
-      let exist = true;
-      const myPromise = values.choices.map(async (choice) => {
-        for (let ingredient of choice.ingredients) {
-          const foundIngredient = await IngredientModel.findOne({
-            id: ingredient,
-            isSupplement: false,
-            idCompany: foundCompany.id,
-            isArchived: false,
-          });
-          if (!foundIngredient) {
-            return (exist = false);
-          }
-        }
-      });
-      await Promise.all(myPromise);
-      if (!exist) {
-        return res.status(404).send({
-          message: "An ingredient in the choices list wasn't found",
-          code: 404,
-          success: false,
-          date: Date.now(),
-        });
-      }
-    }
+    //   let exist = true;
+    //   const myPromise = values.restaurants.map(async (idVendor) => {
+    //     const foundVendor = await RestaurantModel.findOne({
+    //       id: idVendor,
+    //       idCompany: foundCompany.id,
+    //       isArchived: false,
+    //     });
+    //     if (
+    //       !foundVendor ||
+    //       !foundCompany.restaurants.includes(foundVendor.id)
+    //     ) {
+    //       return (exist = false);
+    //     }
+    //   });
+    //   await Promise.all(myPromise);
+    //   if (!exist) {
+    //     return res.status(404).send({
+    //       message:
+    //         "A restaurant in the list wasn't found or doesn't belong to your company",
+    //       code: 404,
+    //       success: false,
+    //       date: Date.now(),
+    //     });
+    //   }
+    // }
+    // if (values.category) {
+    //   const foundCategory = await CategoryModel.findOne({
+    //     id: values.category,
+    //     isArchived: false,
+    //     idCompany: foundCompany.id,
+    //   });
+    //   if (!foundCategory) {
+    //     return res.status(404).send({
+    //       message: "Category not found",
+    //       code: 404,
+    //       success: false,
+    //       date: Date.now(),
+    //     });
+    //   }
+    // }
+    // if (values.supplements && values.supplements[0]) {
+    //   let exist = true;
+    //   const myPromise = values.supplements.map(async (supplement) => {
+    //     const foundSupplement = await IngredientModel.findOne({
+    //       id: supplement,
+    //       isSupplement: true,
+    //       idCompany: foundCompany.id,
+    //       isArchived: false,
+    //     });
+    //     if (!foundSupplement) {
+    //       return (exist = false);
+    //     }
+    //   });
+    //   await Promise.all(myPromise);
+    //   if (!exist) {
+    //     return res.status(404).send({
+    //       message:
+    //         "A supplement in the list wasn't found or doesn't belong to your company",
+    //       code: 404,
+    //       success: false,
+    //       date: Date.now(),
+    //     });
+    //   }
+    // }
+    // if (values.defaultIngredients && values.defaultIngredients[0]) {
+    //   let exist = true;
+    //   let foodCost = 0;
+    //   const myPromise = values.defaultIngredients.map(async (ingredient) => {
+    //     const foundIngredient = await IngredientModel.findOne({
+    //       id: ingredient.ingredient,
+    //       isSupplement: false,
+    //       idCompany: foundCompany.id,
+    //       isArchived: false,
+    //     });
+    //     if (!foundIngredient) {
+    //       return (exist = false);
+    //     }
+    //     foodCost += foundIngredient.purchasedPrice * ingredient.quantity;
+    //   });
+    //   await Promise.all(myPromise);
+    //   if (!exist) {
+    //     return res.status(404).send({
+    //       message:
+    //         "An ingredient in the list wasn't found or doesn't belong to your company",
+    //       code: 404,
+    //       success: false,
+    //       date: Date.now(),
+    //     });
+    //   }
+    //   values.foodCost = foodCost;
+    // }
+    // if (values.choices && values.choices[0]) {
+    //   let exist = true;
+    //   const myPromise = values.choices.map(async (choice) => {
+    //     for (let ingredient of choice.ingredients) {
+    //       const foundIngredient = await IngredientModel.findOne({
+    //         id: ingredient,
+    //         isSupplement: false,
+    //         idCompany: foundCompany.id,
+    //         isArchived: false,
+    //       });
+    //       if (!foundIngredient) {
+    //         return (exist = false);
+    //       }
+    //     }
+    //   });
+    //   await Promise.all(myPromise);
+    //   if (!exist) {
+    //     return res.status(404).send({
+    //       message: "An ingredient in the choices list wasn't found",
+    //       code: 404,
+    //       success: false,
+    //       date: Date.now(),
+    //     });
+    //   }
+    // }
     await foundProduct.updateOne(values);
     res.status(200).send({
       message: "Updated product",
@@ -2992,9 +3010,8 @@ exports.editProduct = async (req, res) => {
       date: Date.now(),
     });
 
-    let Promise1, Promise2, Promise3, Promise4;
     if (values.restaurants && values.restaurants[0]) {
-      Promise1 = values.restaurants.map(async (idVendor) => {
+      const Promise1 = values.restaurants.map(async (idVendor) => {
         const foundVendor = await RestaurantModel.findOne({
           id: idVendor,
           idCompany: foundCompany.id,
@@ -3005,9 +3022,10 @@ exports.editProduct = async (req, res) => {
           await foundVendor.save();
         }
       });
+      await Promise.all(Promise1);
     }
     if (values.defaultIngredients && values.defaultIngredients[0]) {
-      Promise2 = values.defaultIngredients.map(async (ingredient) => {
+      const Promise2 = values.defaultIngredients.map(async (ingredient) => {
         const foundIngredient = await IngredientModel.findOne({
           id: ingredient.ingredient,
           isSupplement: false,
@@ -3021,9 +3039,10 @@ exports.editProduct = async (req, res) => {
         }
         foodCost += foundIngredient.purchasedPrice * ingredient.quantity;
       });
+      await Promise.all(Promise2);
     }
     if (values.choices && values.choices[0]) {
-      Promise3 = values.choices.map(async (choice) => {
+      const Promise3 = values.choices.map(async (choice) => {
         for (let ingredient of choice.ingredients) {
           const foundIngredient = await IngredientModel.findOne({
             id: ingredient,
@@ -3037,9 +3056,10 @@ exports.editProduct = async (req, res) => {
           }
         }
       });
+      await Promise.all(Promise3);
     }
     if (values.supplements && values.supplements[0]) {
-      Promise4 = values.supplements.map(async (supplement) => {
+      const Promise4 = values.supplements.map(async (supplement) => {
         const foundSupplement = await IngredientModel.findOne({
           id: supplement,
           isSupplement: true,
@@ -3052,9 +3072,10 @@ exports.editProduct = async (req, res) => {
           await foundSupplement.save();
         }
       });
+      await Promise.all(Promise4);
     }
-    await Promise.all(Promise1, Promise2, Promise3, Promise4);
   } catch (error) {
+    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from editProduct endpoint, please report to the sys administrator !",
@@ -3403,7 +3424,9 @@ exports.getCategories = async (req, res) => {
     const foundCategories = await CategoryModel.find({
       idCompany: foundCompany.id,
       isArchived: false,
-    }).select("-__v -_id ");
+    })
+      .select("-__v -_id ")
+      .sort({ _id: -1 });
     if (foundCategories && foundCategories[0]) {
       res.status(200).send({
         message: "Fetched categories",
@@ -3780,7 +3803,9 @@ exports.getTables = async (req, res) => {
     const foundTables = await TableModel.find({
       idCompany: foundCompany.id,
       isArchived: false,
-    }).select("-_id -__v");
+    })
+      .select("-_id -__v")
+      .sort({ _id: -1 });
     return res.status(200).send({
       message: "Fetched tables",
       code: 200,
@@ -4308,9 +4333,11 @@ exports.getWaiters = async (req, res) => {
       idCompany: foundCompany.id,
       role: "waiter",
       isArchived: false,
-    }).select(
-      "id name surname email cin birthDate role isActive phone photo createdAt idCompany restaurant"
-    );
+    })
+      .select(
+        "id name surname email cin birthDate role isActive phone photo createdAt idCompany restaurant"
+      )
+      .sort({ _id: -1 });
     const myPromise = foundWaiters.map(async (waiter) => {
       if (waiter.restaurant !== "") {
         const foundRestaurant = await RestaurantModel.findOne({
@@ -4377,7 +4404,7 @@ exports.getWaiter = async (req, res) => {
       idCompany: foundCompany.id,
       isArchived: false,
     }).select(
-      "id name surname email cin birthDate role isActive phone photo createdAt idCompany"
+      "id name surname email cin birthDate role isActive phone photo createdAt idCompany restaurant"
     );
     if (foundWaiter)
       return res.status(200).send({
@@ -4731,7 +4758,9 @@ exports.getCoupons = async (req, res) => {
     const foundCoupons = await CouponModel.find({
       idCompany: foundCompany.id,
       isArchived: false,
-    }).select("-_id -__v");
+    })
+      .select("-_id -__v")
+      .sort({ _id: -1 });
     return res.status(200).send({
       message: "Fetched coupons",
       code: 200,
@@ -4839,6 +4868,7 @@ exports.editCoupon = async (req, res) => {
     const { id } = req.params;
 
     const values = req.body;
+    console.log(values);
     if (values.code)
       return res.status(401).send({
         message: "You cannot modify this field",
@@ -6540,7 +6570,9 @@ exports.getChoices = async (req, res) => {
     let foundChoices = await ChoiceModel.find({
       idCompany: foundCompany.id,
       isArchived: false,
-    }).select("-_id -__v");
+    })
+      .select("-_id -__v")
+      .sort({ _id: -1 });
     if (foundChoices && foundChoices[0]) {
       const myPromise = foundChoices.map(async (choice) => {
         let ingredientsTab = [];
