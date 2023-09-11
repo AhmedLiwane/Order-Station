@@ -2402,15 +2402,7 @@ exports.addProduct = async (req, res) => {
       priority,
       supplements,
     } = req.body;
-    if (
-      !name ||
-      (composable !== true && composable !== false) ||
-      !category ||
-      !price ||
-      !restaurants ||
-      !priority ||
-      restaurants.length === 0
-    ) {
+    if (!name || !category || !price) {
       return res.status(400).send({
         message: "Missing details",
         code: 400,
@@ -2442,35 +2434,9 @@ exports.addProduct = async (req, res) => {
 
     const idProduct = uuidv4();
 
-    if (restaurants && restaurants[0]) {
-      let exist = true;
-      const myPromise = restaurants.map(async (idVendor) => {
-        const foundVendor = await RestaurantModel.findOne({
-          id: idVendor,
-          idCompany: foundCompany.id,
-          isArchived: false,
-        });
-        if (
-          !foundVendor ||
-          !foundVendor.categories.includes(category) ||
-          !foundCompany.restaurants.includes(foundVendor.id)
-        ) {
-          return (exist = false);
-        }
-      });
-      await Promise.all(myPromise);
-      if (!exist) {
-        return res.status(404).send({
-          message:
-            "A restaurant in the list wasn't found or doesn't belong to your company",
-          code: 404,
-          success: false,
-          date: Date.now(),
-        });
-      }
-    }
     let foodCost = 0;
     if (defaultIngredients && defaultIngredients[0]) {
+      console.log(defaultIngredients);
       let exist = true;
       const myPromise = defaultIngredients.map(async (ingredient) => {
         const foundIngredient = await IngredientModel.findOne({
@@ -2482,8 +2448,10 @@ exports.addProduct = async (req, res) => {
         if (!foundIngredient) {
           return (exist = false);
         }
-        foodCost += foundIngredient.purchasedPrice * ingredient.quantity;
-        ingredient.price = foundIngredient.purchasedPrice * ingredient.quantity;
+        foodCost +=
+          foundIngredient.purchasedPrice * Number(ingredient.quantity);
+        ingredient.price =
+          foundIngredient.purchasedPrice * Number(ingredient.quantity);
       });
       await Promise.all(myPromise);
       if (!exist) {
@@ -2503,28 +2471,7 @@ exports.addProduct = async (req, res) => {
         date: Date.now(),
       });
     }
-    if (choices && choices[0]) {
-      let exist = true;
-      const myPromise = choices.map(async (choice) => {
-        const foundChoice = await ChoiceModel.findOne({
-          id: choice,
-          idCompany: foundCompany.id,
-          isArchived: false,
-        });
-        if (!foundChoice) {
-          return (exist = false);
-        }
-      });
-      await Promise.all(myPromise);
-      if (!exist) {
-        return res.status(404).send({
-          message: "A choice in the list wasn't found",
-          code: 404,
-          success: false,
-          date: Date.now(),
-        });
-      }
-    }
+
     if (supplements && supplements[0]) {
       let exist = true;
       const myPromise = supplements.map(async (supplement) => {
@@ -2574,17 +2521,18 @@ exports.addProduct = async (req, res) => {
       date: Date.now(),
       data: newProduct,
     });
-
-    const Promise1 = restaurants.map(async (idVendor) => {
-      const foundVendor = await RestaurantModel.findOne({
-        id: idVendor,
-        idCompany: foundCompany.id,
-        isArchived: false,
+    if (restaurants && restaurants[0]) {
+      const Promise1 = restaurants.map(async (idVendor) => {
+        const foundVendor = await RestaurantModel.findOne({
+          id: idVendor,
+          idCompany: foundCompany.id,
+          isArchived: false,
+        });
+        foundVendor.products.push(idProduct);
+        await foundVendor.save();
       });
-      foundVendor.products.push(idProduct);
-      await foundVendor.save();
-    });
-    await Promise.all(Promise1);
+      await Promise.all(Promise1);
+    }
     if (defaultIngredients && defaultIngredients[0]) {
       const Promise2 = defaultIngredients.map(async (ingredient) => {
         const foundIngredient = await IngredientModel.findOne({
@@ -2600,31 +2548,31 @@ exports.addProduct = async (req, res) => {
       });
       await Promise.all(Promise2);
     }
-    if (choices && choices[0]) {
-      const Promise3 = choices.map(async (choice) => {
-        const foundChoice = await ChoiceModel.findOne({
-          id: choice,
-          idCompany: foundCompany.id,
-          isArchived: false,
-        });
-        foundChoice.products.push(idProduct);
-        await foundChoice.save();
-      });
-      await Promise.all(Promise3);
-    }
-    if (supplements && supplements[0]) {
-      const Promise4 = supplements.map(async (supplement) => {
-        const foundSupplement = await IngredientModel.findOne({
-          id: supplement,
-          isSupplement: true,
-          idCompany: foundCompany.id,
-          isArchived: false,
-        });
-        foundSupplement.products.push(idProduct);
-        await foundSupplement.save();
-      });
-      await Promise.all(Promise4);
-    }
+    // if (choices && choices[0]) {
+    //   const Promise3 = choices.map(async (choice) => {
+    //     const foundChoice = await ChoiceModel.findOne({
+    //       id: choice,
+    //       idCompany: foundCompany.id,
+    //       isArchived: false,
+    //     });
+    //     foundChoice.products.push(idProduct);
+    //     await foundChoice.save();
+    //   });
+    //   await Promise.all(Promise3);
+    // }
+    // if (supplements && supplements[0]) {
+    //   const Promise4 = supplements.map(async (supplement) => {
+    //     const foundSupplement = await IngredientModel.findOne({
+    //       id: supplement,
+    //       isSupplement: true,
+    //       idCompany: foundCompany.id,
+    //       isArchived: false,
+    //     });
+    //     foundSupplement.products.push(idProduct);
+    //     await foundSupplement.save();
+    //   });
+    //   await Promise.all(Promise4);
+    // }
   } catch (error) {
     res.status(500).send({
       message:
