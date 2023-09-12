@@ -22,9 +22,9 @@ const Restaurant = new Schema({
   importedFrom: { type: String, default: "" },
   importedId: { type: String, default: "" },
   visibility: {
-    glovo: { type: Boolean },
-    jumia: { type: Boolean },
-    onPlace: { type: Boolean },
+    glovo: { type: Boolean, default: false },
+    jumia: { type: Boolean, default: false },
+    onPlace: { type: Boolean, default: false },
   },
   bankDetails: {
     cardNumber: { type: String, default: "" },

@@ -5284,6 +5284,7 @@ exports.getOrderDetails = async (req, res) => {
       idCompany: foundCompany.id,
     });
     foundOrder.restaurant = foundRestaurant.name;
+    foundOrder.restaurantImage = foundRestaurant.logo;
     const myPromise = foundOrder.products.map(async (object) => {
       const foundProduct = await ProductModel.findOne({
         id: object.product,
@@ -5359,8 +5360,9 @@ exports.updateOrderStatus = async (req, res) => {
       id,
       isArchived: false,
       idCompany: foundCompany.id,
-    }).select("-_id -__v");
+    }).select("-__v");
 
+    console.log(id, status);
     if (!foundOrder) {
       return res.status(404).send({
         message: "Order not found",

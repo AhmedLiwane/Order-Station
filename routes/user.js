@@ -170,7 +170,7 @@ User.put("/editChoice/:id", use(isUser), use(editChoice));
 /* CRUD Orders */
 User.get("/getOrders", use(isUser), use(getOrders));
 User.get("/getOrderDetails/:id", use(isUser), use(getOrderDetails));
-User.get("/updateOrderStatus/:id/:status", use(isUser), use(updateOrderStatus));
+User.put("/updateOrderStatus/:id/:status", use(isUser), use(updateOrderStatus));
 
 /* Jumia */
 User.post("/addJumiaAccount", use(isUser), use(addJumiaAccount));
