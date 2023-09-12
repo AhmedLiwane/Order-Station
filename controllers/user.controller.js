@@ -1327,13 +1327,7 @@ exports.addIngredient = async (req, res) => {
     let values = {};
     // Adding supplements
     if (req.body.isSupplement) {
-      if (
-        !req.body.name ||
-        !req.body.price ||
-        !req.body.priority ||
-        !req.body.restaurants ||
-        req.body.restaurants.length === 0
-      ) {
+      if (!req.body.name || !req.body.price || !req.body.priority) {
         return res.status(400).send({
           message: "Missing details",
           code: 400,
@@ -1377,7 +1371,11 @@ exports.addIngredient = async (req, res) => {
       };
     }
     // Check comapny's viability
-    if (foundCompany.type === "monobrand" && req.body.restaurants.length > 1) {
+    if (
+      foundCompany.type === "monobrand" &&
+      req.body.restaurants &&
+      req.body.restaurants.length > 1
+    ) {
       return res.status(401).send({
         message:
           "Your company is Monobrand, you can't assing to more than 1 restaurant",
@@ -1473,9 +1471,8 @@ exports.addIngredient = async (req, res) => {
           await foundProduct.save();
         }
       });
+      await Promise.all(Promise2);
     }
-
-    await Promise.all(Promise2);
   } catch (error) {
     console.log(error);
     res.status(500).send({
@@ -5293,13 +5290,14 @@ exports.getOrderDetails = async (req, res) => {
       });
       object.product = foundProduct.name;
       object.productPrice = foundProduct.price;
+      console.log(object.choices);
       const foundIngredients = await IngredientModel.find({
         id: { $in: object.choices },
         isArchived: false,
         isSupplement: false,
         idCompany: foundCompany.id,
       }).select("name price -_id");
-      object.choices = foundIngredients;
+      object.choices = foundIngredients.map((ing) => ing.name);
       const foundSupplements = await IngredientModel.find({
         id: { $in: object.extra },
         isArchived: false,

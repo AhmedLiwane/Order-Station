@@ -24,6 +24,7 @@ const Order = new Schema({
   isPickup: { type: Boolean, default: false },
   pickupCode: { type: String, default: "" },
   customerName: { type: String, default: "" },
+  restaurantImage: { type: String, default: "" },
   customerComment: { type: String, default: "" },
   restaurant: { type: String, default: "" },
   idJumiaOrder: { type: String, default: "" },
