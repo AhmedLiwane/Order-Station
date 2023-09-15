@@ -376,7 +376,7 @@ exports.getOrders = async (req, res) => {
       idCompany: foundCompany.id,
     })
       .select("-__v -_id -products")
-      .sort({ _id: -1 });
+      .sort({ createdAt: -1 });
 
     const myPromise = foundOrders.map(async (order) => {
       if (order.restaurant !== "") {
@@ -1474,7 +1474,6 @@ exports.addIngredient = async (req, res) => {
       await Promise.all(Promise2);
     }
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from addIngredient endpoint, please report to the sys administrator !",
@@ -1885,7 +1884,6 @@ exports.archiveIngredient = async (req, res) => {
       date: Date.now(),
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from archiveIngredient endpoint, please report to the sys administrator !",
@@ -2433,7 +2431,6 @@ exports.addProduct = async (req, res) => {
 
     let foodCost = 0;
     if (defaultIngredients && defaultIngredients[0]) {
-      console.log(defaultIngredients);
       let exist = true;
       const myPromise = defaultIngredients.map(async (ingredient) => {
         const foundIngredient = await IngredientModel.findOne({
@@ -3020,7 +3017,6 @@ exports.editProduct = async (req, res) => {
       await Promise.all(Promise4);
     }
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from editProduct endpoint, please report to the sys administrator !",
@@ -3745,12 +3741,33 @@ exports.getTables = async (req, res) => {
         date: Date.now(),
       });
     }
-    const foundTables = await TableModel.find({
+    let foundTables = await TableModel.find({
       idCompany: foundCompany.id,
       isArchived: false,
     })
       .select("-_id -__v")
       .sort({ _id: -1 });
+
+    const myPromise = foundTables.map(async (table) => {
+      const foundRestaurant = await RestaurantModel.findOne({
+        id: table.restaurant,
+        idCompany: foundCompany.id,
+        isArchived: false,
+      });
+      if (foundRestaurant) {
+        table.restaurant = foundRestaurant.name;
+      }
+      const foundWaiter = await UserModel.findOne({
+        id: table.waiter,
+        role: "waiter",
+        idCompany: foundCompany.id,
+        isArchived: false,
+      });
+      if (foundWaiter) {
+        table.waiter = foundWaiter.name + " " + foundWaiter.surname;
+      }
+    });
+    await Promise.all(myPromise);
     return res.status(200).send({
       message: "Fetched tables",
       code: 200,
@@ -4024,14 +4041,11 @@ exports.archiveTable = async (req, res) => {
     }
     const { id } = req.params;
 
-    const foundTable = await TableModel.findOneAndUpdate(
-      {
-        id,
-        idCompany: foundCompany.id,
-        isArchived: false,
-      },
-      { isArchived: true }
-    );
+    const foundTable = await TableModel.findOne({
+      id,
+      idCompany: foundCompany.id,
+      isArchived: false,
+    });
     if (!foundTable)
       return res.status(404).send({
         message: "Table not found",
@@ -4039,6 +4053,8 @@ exports.archiveTable = async (req, res) => {
         success: false,
         date: Date.now(),
       });
+    foundTable.isArchived = true;
+    await foundTable.save();
     return res.status(200).send({
       message: "Archived table",
       code: 200,
@@ -4085,14 +4101,11 @@ exports.restoreTable = async (req, res) => {
     }
     const { id } = req.params;
 
-    const foundTable = await TableModel.findOneAndUpdate(
-      {
-        id,
-        idCompany: foundCompany.id,
-        isArchived: true,
-      },
-      { isArchived: false }
-    );
+    const foundTable = await TableModel.findOne({
+      id,
+      idCompany: foundCompany.id,
+      isArchived: true,
+    });
     if (!foundTable)
       return res.status(404).send({
         message: "Table not found",
@@ -4100,6 +4113,8 @@ exports.restoreTable = async (req, res) => {
         success: false,
         date: Date.now(),
       });
+    foundTable.isArchived = false;
+    await foundTable.save();
     return res.status(200).send({
       message: "Restored table",
       code: 200,
@@ -4201,7 +4216,6 @@ exports.addWaiter = async (req, res) => {
     });
 
     if (foundCin) {
-      console.log(foundCin.cin);
       return res.status(401).send({
         message: "User with the same cin already exists",
         code: 401,
@@ -4236,7 +4250,6 @@ exports.addWaiter = async (req, res) => {
       data: newUser,
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from addWaiter endpoint, please report to the sys administrator !",
@@ -4304,7 +4317,6 @@ exports.getWaiters = async (req, res) => {
       data: foundWaiters,
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from getWaiters endpoint, please report to the sys administrator !",
@@ -4813,7 +4825,6 @@ exports.editCoupon = async (req, res) => {
     const { id } = req.params;
 
     const values = req.body;
-    console.log(values);
     if (values.code)
       return res.status(401).send({
         message: "You cannot modify this field",
@@ -5290,7 +5301,6 @@ exports.getOrderDetails = async (req, res) => {
       });
       object.product = foundProduct.name;
       object.productPrice = foundProduct.price;
-      console.log(object.choices);
       const foundIngredients = await IngredientModel.find({
         id: { $in: object.choices },
         isArchived: false,
@@ -5315,7 +5325,6 @@ exports.getOrderDetails = async (req, res) => {
       data: foundOrder,
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from getOrderDetails endpoint, please report to the sys administrator !",
@@ -5360,7 +5369,6 @@ exports.updateOrderStatus = async (req, res) => {
       idCompany: foundCompany.id,
     }).select("-__v");
 
-    console.log(id, status);
     if (!foundOrder) {
       return res.status(404).send({
         message: "Order not found",
@@ -5378,7 +5386,6 @@ exports.updateOrderStatus = async (req, res) => {
       date: Date.now(),
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from updateOrderStatus endpoint, please report to the sys administrator !",
@@ -5615,6 +5622,7 @@ exports.importJumiaOrders = async (req, res) => {
       )
       .then(async (result) => {
         const orderList = result.data;
+        console.log(orderList);
         const myPromise = orderList.map(async (order) => {
           await axios
             .get(
@@ -5803,7 +5811,6 @@ exports.importJumiaVendors = async (req, res) => {
         });
       })
       .catch((err) => {
-        console.log(err);
         res.status(400).send({
           message: "Something went wrong",
           code: 400,
@@ -6046,7 +6053,6 @@ exports.importJumiaSupplements = async (req, res) => {
     });
     findAndRemoveDuplicateImportedIds();
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from importJumiaSupplements endpoint, please report to the sys administrator !",
@@ -6167,7 +6173,6 @@ exports.importJumiaIngredients = async (req, res) => {
     });
     findAndRemoveDuplicateImportedIds();
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message:
         "This error is coming from importJumiaIngredients endpoint, please report to the sys administrator !",

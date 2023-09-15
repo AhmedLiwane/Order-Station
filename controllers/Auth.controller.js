@@ -144,7 +144,6 @@ exports.confirmResetPassword = async (req, res) => {
       });
     }
   } catch (err) {
-    console.log(err);
     res.status(500).send({
       message:
         "This error is coming from confirmResetPassword endpoint, please report it to the sys administrator!",

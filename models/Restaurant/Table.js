@@ -7,7 +7,7 @@ const Table = new Schema({
   idCompany: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now() },
   isAvailable: { type: Boolean, default: true },
-  isArchvied: { type: Boolean, default: false },
+  isArchived: { type: Boolean, default: false },
   qrcode: { type: String, default: "" },
   restaurant: { type: String, default: "" },
   waiter: { type: String, default: "" },
